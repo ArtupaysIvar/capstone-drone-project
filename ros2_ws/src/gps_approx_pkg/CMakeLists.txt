@@ -5,6 +5,10 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(pixel_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)  
+find_package(Ceres REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+
 
 add_executable(calc_gps_node src/CalcGPSNode.cpp)
 
@@ -12,6 +16,13 @@ ament_target_dependencies(calc_gps_node
   rclcpp
   pixel_msgs
   geometry_msgs
+  # Eigen3
+  # Ceres
+)
+
+target_link_libraries(calc_gps_node
+  Eigen3::Eigen
+  Ceres::ceres
 )
 # punya orang:
 # target_include_directories(control_node PUBLIC

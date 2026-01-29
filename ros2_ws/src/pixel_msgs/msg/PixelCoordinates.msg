@@ -1,4 +1,4 @@
 std_msgs/Header header
-int64 u
-int64 v
+float64 u
+float64 v
 float32 confidence
