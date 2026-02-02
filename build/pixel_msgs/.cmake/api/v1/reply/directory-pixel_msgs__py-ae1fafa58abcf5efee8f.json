@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "pixel_msgs__py",
+		"source" : "/home/ravi/capstone-drone-project/build/pixel_msgs/pixel_msgs__py"
+	}
+}

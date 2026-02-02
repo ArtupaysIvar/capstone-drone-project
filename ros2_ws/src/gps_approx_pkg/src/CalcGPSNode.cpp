@@ -31,11 +31,8 @@ private:
     void confCallback1(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg1);
     void confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg2);
     void confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg3);
+    bool dataCheck();
     void timerCallback();
-
-    // void projectionFormula(
-    //     const Eigen::Vector3d &pixel_vec, 
-    //     const Eigen::Matrix3d &transformation_mat);
     bool ready();
     void projectionFormula();
     bool MVMP_triangulation();
@@ -55,34 +52,37 @@ private:
     Eigen::Quaterniond q2;
     Eigen::Quaterniond q3;
     
+    // buat checking
+    bool pixel1_received = false;
+    bool pixel2_received = false;
+    bool pixel3_received = false;
+    bool odom1_received = false;
+    bool odom2_received = false;
+    bool odom3_received = false;
+
     // buat projection
-    std::vector<Eigen::Vector3d> proj_vec;
-    std::vector<Eigen::Vector3d> proj_uvec;
-    std::vector<Eigen::Matrix3d> rot_mat;
+    // std::vector<Eigen::Vector3d> proj_vec;
+    // std::vector<Eigen::Vector3d> proj_uvec;
+    // std::vector<Eigen::Matrix3d> rot_mat;
     Eigen::Vector3d pixel_vec1;
     Eigen::Vector3d pixel_vec2;
     Eigen::Vector3d pixel_vec3;
+    // cam intrinsic 
     Eigen::Matrix3d cam_mat;    
+    // for the cam body rotation
+    Eigen::Matrix3d rot_cam_mat;
+    // for the drone body rotation
+    Eigen::Matrix3d rot_mat1;
+    Eigen::Matrix3d rot_mat2;
+    Eigen::Matrix3d rot_mat3;
 
     Eigen::Vector3d proj_vec1;
     Eigen::Vector3d proj_vec2;
     Eigen::Vector3d proj_vec3;
 
-    Eigen::Matrix3d rot_mat1;
-    Eigen::Matrix3d rot_mat2;
-    Eigen::Matrix3d rot_mat3;
-
     Eigen::Vector3d proj_uvec1;
     Eigen::Vector3d proj_uvec2;
     Eigen::Vector3d proj_uvec3;
-
-    
-    // std::vector<Eigen::Vector3d> pixel_vec;
-    // Eigen::Vector3d proj_vec;
-    // Eigen::Vector3d proj_uvec;
-    // Eigen::Matrix3d rot_mat;
-    // Eigen::Vector3d pixel_vec;
-    // Eigen::Matrix3d cam_mat;    
     
     // buat MVMP_triangulation
     Eigen::Matrix3d A_sum;
@@ -139,37 +139,31 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         
         double fx = 400.0, fy = 400.0, cx = 320.0, cy = 240.0;
         cam_mat << fx, 0,  cx,
-                0,  fy, cy,
-                0,  0,  1;
-
-        // timer_ =  this->create_wall_timer(std::chrono::milliseconds(500), 
-        // std::bind(&CalcGPSNode::timer_callback), this);
+                    0,  fy, cy,
+                    0,  0,  1;
+        // downward cam
+        rot_cam_mat << 0, 1, 0,
+                        1, 0, 0,
+                        0, 0, -1;
     };
 
         // CALLBACK BUAT PIXEL
 void CalcGPSNode::pixelCallback1(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg1){
         conf1 = YOLOmsg1->confidence;
-
         pixel_vec1 << YOLOmsg1->u, YOLOmsg1->v, 1.0;
-
-        // STILL WRONG
-        geometry_msgs::msg::Point GPSmsg;
-        GPSmsg.x = target_point.x();
-        GPSmsg.y = target_point.y();
-        GPSmsg.z = target_point.z();
-        publisher_->publish(GPSmsg);
+        pixel1_received = true;
     }
 
 void CalcGPSNode::pixelCallback2(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg2){
         conf2 = YOLOmsg2->confidence;
-
         pixel_vec2 << YOLOmsg2->u, YOLOmsg2->v, 1;
+        pixel2_received = true;
     }
 
 void CalcGPSNode::pixelCallback3(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg3){
         conf3 = YOLOmsg3->confidence;
-
-        pixel_vec3 << YOLOmsg3->u, YOLOmsg3->u, 1;
+        pixel_vec3 << YOLOmsg3->u, YOLOmsg3->v, 1;
+        pixel3_received = true;
     }
 
         // CALLBACK BUAT conf
@@ -184,7 +178,7 @@ void CalcGPSNode::confCallback1(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         // Check if PX4 quaternion order is [w,x,y,z] or [x,y,z,w]
         q1 = Eigen::Quaterniond(confmsg1->q[0], confmsg1->q[1], confmsg1->q[2], confmsg1->q[3]);
         rot_mat1 = q1.toRotationMatrix();
-
+        odom1_received = true;
     }
 
 void CalcGPSNode::confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg2){
@@ -195,6 +189,7 @@ void CalcGPSNode::confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         drone2_pos_vec << confmsg2 -> position[0], confmsg2 -> position[1], confmsg2 -> position[2];
         q2 = Eigen::Quaterniond(confmsg2->q[0], confmsg2->q[1], confmsg2->q[2], confmsg2->q[3]);
         rot_mat2 = q2.toRotationMatrix();
+        odom2_received = true;
     }
 
 void CalcGPSNode::confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg3){
@@ -205,7 +200,15 @@ void CalcGPSNode::confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         drone3_pos_vec << confmsg3 -> position[0], confmsg3 -> position[1], confmsg3 -> position[2];
         q3 = Eigen::Quaterniond(confmsg3->q[0], confmsg3->q[1], confmsg3->q[2], confmsg3->q[3]);
         rot_mat3 = q3.toRotationMatrix();
+        odom3_received = true;
     }
+
+bool CalcGPSNode::dataCheck()
+{
+    return (pixel1_received && pixel2_received && pixel3_received &&
+            odom1_received && odom2_received && odom3_received);
+}
+
 
 bool CalcGPSNode::ready(){
         // if(conf1>0.5 || conf2>0.5 || conf3>0.5);
@@ -218,9 +221,9 @@ void CalcGPSNode::projectionFormula()
         // x = K^-1 * x'
         // Eigen::Vector3d cam_mat_curr =  cam_mat_curr[0];    
         // INGETIN URUTANNYA 
-        proj_vec1 =  rot_mat1.transpose() * cam_mat.inverse() * pixel_vec1;
-        proj_vec2 =  rot_mat2.transpose() * cam_mat.inverse() * pixel_vec2;
-        proj_vec3 =  rot_mat3.transpose() * cam_mat.inverse() * pixel_vec3;
+        proj_vec1 =  (rot_mat1*rot_cam_mat).transpose() * cam_mat.inverse() * pixel_vec1;
+        proj_vec2 =  (rot_mat2*rot_cam_mat).transpose() * cam_mat.inverse() * pixel_vec2;
+        proj_vec3 =  (rot_mat3*rot_cam_mat).transpose() * cam_mat.inverse() * pixel_vec3;
         
         proj_uvec1 = proj_vec1/proj_vec1.norm();
         proj_uvec2 = proj_vec2/proj_vec2.norm();
@@ -242,7 +245,7 @@ bool CalcGPSNode::MVMP_triangulation(){
         B_sum += B * o_vec[i];
     }
      
-    Eigen::Vector3d target_point = A_sum.ldlt().solve(B_sum);
+    // target_point = A_sum.ldlt().solve(B_sum);
     // res = A_sum.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(b_sum);
 
     // 1st check: cek determinant
@@ -253,7 +256,7 @@ bool CalcGPSNode::MVMP_triangulation(){
         return false;
     }
 
-    target_point = A_sum.ldlt().solve(B_sum);
+    target_point = A_sum.ldlt().solve(B_sum); // solve
     
     // 2nd check: cek solution
     if (!target_point.allFinite()) {
@@ -268,6 +271,8 @@ bool CalcGPSNode::MVMP_triangulation(){
         double depth = to_point.dot(b_vec[i]);
         if (depth < 0.0) {
             // RCLCPP_WARN(this->get_logger(), "Triangulation warning: point behind camera %d (depth=%.2f)", i+1, depth);
+            target_valid = false;
+            return false;
         }
     }
 
@@ -278,16 +283,13 @@ bool CalcGPSNode::MVMP_triangulation(){
 
 void CalcGPSNode::timerCallback(){
 
-//     if (!allDataReceived()) {
-//     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-//         "Waiting for data: pixel[%d,%d,%d] odom[%d,%d,%d]",
-//         pixel1_received, pixel2_received, pixel3_received,
-//         odom1_received, odom2_received, odom3_received);
-//     return;
-// }
+    if (!dataCheck()) {
+    return;
+    }
+
 if (!ready()) {
     return;
-}
+    }
 
 projectionFormula();
 

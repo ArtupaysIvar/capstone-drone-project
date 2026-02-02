@@ -1,0 +1,6 @@
+{
+  "package_name": "pixel_msgs",
+  "non_idl_tuples": [
+    "/home/ravi/capstone-drone-project/ros2_ws/src/pixel_msgs:msg/PixelCoordinates.msg"
+  ]
+}

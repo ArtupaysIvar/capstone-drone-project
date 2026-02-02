@@ -1,0 +1,233 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-a10328ce06db0744215f.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14,
+						15,
+						16,
+						17
+					]
+				},
+				{
+					"build" : "pixel_msgs__py",
+					"jsonFile" : "directory-pixel_msgs__py-ae1fafa58abcf5efee8f.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/home/ravi/capstone-drone-project/build/pixel_msgs/pixel_msgs__py",
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"name" : "",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "pixel_msgs",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14,
+						15,
+						16,
+						17
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ament_cmake_python_build_pixel_msgs_egg::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ament_cmake_python_build_pixel_msgs_egg-c9d97be35eed24b0ea0d.json",
+					"name" : "ament_cmake_python_build_pixel_msgs_egg",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ament_cmake_python_copy_pixel_msgs::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ament_cmake_python_copy_pixel_msgs-8424f61985765c9f9265.json",
+					"name" : "ament_cmake_python_copy_pixel_msgs",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs-09c26f6218647e3a80fc.json",
+					"name" : "pixel_msgs",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__cpp-ad5ca1ce3332c400dc36.json",
+					"name" : "pixel_msgs__cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "pixel_msgs__py::@f86e2df7acbaae5c9c3f",
+					"jsonFile" : "target-pixel_msgs__py-a758267405bf99d43f1a.json",
+					"name" : "pixel_msgs__py",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_generator_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_generator_c-433943ef068b8c44bb35.json",
+					"name" : "pixel_msgs__rosidl_generator_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_generator_py::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_generator_py-578fd7924b7f80500865.json",
+					"name" : "pixel_msgs__rosidl_generator_py",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_c-436372f5cfd5922e9235.json",
+					"name" : "pixel_msgs__rosidl_typesupport_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_c__pyext::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_c__pyext-5b5ce17873814062abd0.json",
+					"name" : "pixel_msgs__rosidl_typesupport_c__pyext",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_cpp-8118748a9e2cbb88f80b.json",
+					"name" : "pixel_msgs__rosidl_typesupport_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_fastrtps_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_fastrtps_c-8216474cd783e44b54ce.json",
+					"name" : "pixel_msgs__rosidl_typesupport_fastrtps_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_fastrtps_c__pyext::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_fastrtps_c__pyext-1cda7e6651f5fce68ba5.json",
+					"name" : "pixel_msgs__rosidl_typesupport_fastrtps_c__pyext",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_fastrtps_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_fastrtps_cpp-df809202fe81264b0100.json",
+					"name" : "pixel_msgs__rosidl_typesupport_fastrtps_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_introspection_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_introspection_c-2b378918f057b6b06733.json",
+					"name" : "pixel_msgs__rosidl_typesupport_introspection_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_introspection_c__pyext::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_introspection_c__pyext-3d33aba7ac8fb1274a16.json",
+					"name" : "pixel_msgs__rosidl_typesupport_introspection_c__pyext",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs__rosidl_typesupport_introspection_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs__rosidl_typesupport_introspection_cpp-dd7f6e19c120969d79a9.json",
+					"name" : "pixel_msgs__rosidl_typesupport_introspection_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pixel_msgs_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pixel_msgs_uninstall-9e18e96fc1de41a205ff.json",
+					"name" : "pixel_msgs_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-84b8612650bfd9c2f7a7.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/ravi/capstone-drone-project/build/pixel_msgs",
+		"source" : "/home/ravi/capstone-drone-project/ros2_ws/src/pixel_msgs"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
