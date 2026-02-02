@@ -4,6 +4,7 @@ project(gps_approx_pkg)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(pixel_msgs REQUIRED)
+find_package(px4_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)  
 find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -16,6 +17,7 @@ ament_target_dependencies(calc_gps_node
   rclcpp
   pixel_msgs
   geometry_msgs
+  px4_msgs
   # Eigen3
   # Ceres
 )

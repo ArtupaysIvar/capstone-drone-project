@@ -4,133 +4,324 @@
 // #include <random>
 // #include <iostream>
 // #include <fstream>
-#include "pixel_msgs/msg/pixel_coordinates.hpp"
+// #include <ceres/ceres.h>
 #include <rclcpp/rclcpp.hpp>
+#include "pixel_msgs/msg/pixel_coordinates.hpp"
 #include "geometry_msgs/msg/point.hpp"
-#include <ceres/ceres.h>
+#include <px4_msgs/msg/vehicle_odometry.hpp>
 #include <Eigen/Cholesky>
+#include <Eigen/Eigenvalues>
+#include <Eigen/Jacobi>
 #include <cmath>
 #include <vector>
-
+#include <chrono>
 
 class CalcGPSNode : public rclcpp::Node
 {   
 public:
-    //constructor
+    // constructor
     CalcGPSNode();
 
 private:
 
-    void pixelCallback(
-        const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg);
+    // callback funcs
+    void pixelCallback1(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg1);
+    void pixelCallback2(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg2);
+    void pixelCallback3(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg3);
+    void confCallback1(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg1);
+    void confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg2);
+    void confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg3);
+    void timerCallback();
 
-    void projectionFormula(
-        const Eigen::Vector4d& pixel_vec, 
-        const Eigen::Matrix4d& transformation_mat);
+    // void projectionFormula(
+    //     const Eigen::Vector3d &pixel_vec, 
+    //     const Eigen::Matrix3d &transformation_mat);
+    bool ready();
+    void projectionFormula();
+    bool MVMP_triangulation();
 
-    void MVMP_triangulation();
 
     // buat pixelCallback
-    double pixel_u, pixel_v; 
-    float conf;
-    int placeholder_1, placeholder_2, placeholder_3; 
+    float conf1, conf2, conf3;
+    
+    // buat confCallback
+    double drone1_xpos, drone1_ypos, drone1_zpos;
+    double drone2_xpos, drone2_ypos, drone2_zpos;
+    double drone3_xpos, drone3_ypos, drone3_zpos;
+    Eigen::Vector3d drone1_pos_vec;
+    Eigen::Vector3d drone2_pos_vec;
+    Eigen::Vector3d drone3_pos_vec;
+    Eigen::Quaterniond q1;
+    Eigen::Quaterniond q2;
+    Eigen::Quaterniond q3;
     
     // buat projection
-    // std::vector<Eigen::Vector3d> proj_vec;
-    // std::vector<Eigen::Vector3d> proj_uvec;
-    // std::vector<Eigen::Vector3d> pixel_vec;
-    // std::vector<Eigen::Matrix3d> rot_mat;
-    
-    Eigen::Vector3d proj_vec;
-    Eigen::Vector3d proj_uvec;
-    Eigen::Vector3d pixel_vec;
-    Eigen::Matrix3d rot_mat;
-    
+    std::vector<Eigen::Vector3d> proj_vec;
+    std::vector<Eigen::Vector3d> proj_uvec;
+    std::vector<Eigen::Matrix3d> rot_mat;
+    Eigen::Vector3d pixel_vec1;
+    Eigen::Vector3d pixel_vec2;
+    Eigen::Vector3d pixel_vec3;
     Eigen::Matrix3d cam_mat;    
+
+    Eigen::Vector3d proj_vec1;
+    Eigen::Vector3d proj_vec2;
+    Eigen::Vector3d proj_vec3;
+
+    Eigen::Matrix3d rot_mat1;
+    Eigen::Matrix3d rot_mat2;
+    Eigen::Matrix3d rot_mat3;
+
+    Eigen::Vector3d proj_uvec1;
+    Eigen::Vector3d proj_uvec2;
+    Eigen::Vector3d proj_uvec3;
+
+    
+    // std::vector<Eigen::Vector3d> pixel_vec;
+    // Eigen::Vector3d proj_vec;
+    // Eigen::Vector3d proj_uvec;
+    // Eigen::Matrix3d rot_mat;
+    // Eigen::Vector3d pixel_vec;
+    // Eigen::Matrix3d cam_mat;    
     
     // buat MVMP_triangulation
-    
+    Eigen::Matrix3d A_sum;
+    Eigen::Vector3d B_sum;
+    Eigen::Vector3d target_point;
+    bool target_valid = false;
 
-    // publishers subscribers
-    rclcpp::Subscription<pixel_msgs::msg::PixelCoordinates>::SharedPtr drone1_subscriber;
-    rclcpp::Subscription<pixel_msgs::msg::PixelCoordinates>::SharedPtr drone2_subscriber;
-    rclcpp::Subscription<pixel_msgs::msg::PixelCoordinates>::SharedPtr drone3_subscriber;
+    // Eigen::Matrix3d A_sum = Eigen::Matrix3d::Zero();
+    // Eigen::Vector3d b_sum = Eigen::Vector3d::Zero();
+
+    // subscribers
+    rclcpp::Subscription<pixel_msgs::msg::PixelCoordinates>::SharedPtr drone1_pix_subs;
+    rclcpp::Subscription<pixel_msgs::msg::PixelCoordinates>::SharedPtr drone2_pix_subs;
+    rclcpp::Subscription<pixel_msgs::msg::PixelCoordinates>::SharedPtr drone3_pix_subs;
+    
+    rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr drone1_conf_subs;
+    rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr drone2_conf_subs;
+    rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr drone3_conf_subs;
+
+    // publisher & timer
     rclcpp::Publisher<geometry_msgs::msg::Point>::SharedPtr publisher_;
-    // rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr timer_;
 };
 
 CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
     {
         RCLCPP_INFO(this->get_logger(), "GPS approx. node started");
 
-        drone1_subscriber = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
-        ("pixel_topic1", 10, std::bind(&CalcGPSNode::pixelCallback, this, 
+        drone1_pix_subs = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
+        ("pixel_topic1", 10, std::bind(&CalcGPSNode::pixelCallback1, this, 
+        std::placeholders::_1));
+        drone2_pix_subs = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
+        ("pixel_topic2", 10, std::bind(&CalcGPSNode::pixelCallback2, this, 
+        std::placeholders::_1));
+        drone3_pix_subs = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
+        ("pixel_topic3", 10, std::bind(&CalcGPSNode::pixelCallback3, this, 
         std::placeholders::_1));
         
-        drone2_subscriber = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
-        ("pixel_topic2", 10, std::bind(&CalcGPSNode::pixelCallback, this, 
+        // GA MUNGKIN PAKE PIXEL MESSAGE
+        drone1_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
+        ("/px4_1/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback1, this, 
         std::placeholders::_1));
-        
-        drone3_subscriber = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
-        ("pixel_topic3", 10, std::bind(&CalcGPSNode::pixelCallback, this, 
+        drone2_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
+        ("/px4_2/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback2, this, 
         std::placeholders::_1));
+        drone3_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
+        ("/px4_3/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback3, this, 
+        std::placeholders::_1));
+       
+        timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&CalcGPSNode::timerCallback, this));
 
         publisher_ = this->create_publisher<geometry_msgs::msg::Point>
-        ("pixel_topic", 10);
+        ("point_location", 10);
+        
+        double fx = 400.0, fy = 400.0, cx = 320.0, cy = 240.0;
+        cam_mat << fx, 0,  cx,
+                0,  fy, cy,
+                0,  0,  1;
 
         // timer_ =  this->create_wall_timer(std::chrono::milliseconds(500), 
         // std::bind(&CalcGPSNode::timer_callback), this);
     };
 
-void CalcGPSNode::pixelCallback(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg){
-        conf = YOLOmsg->confidence;
+        // CALLBACK BUAT PIXEL
+void CalcGPSNode::pixelCallback1(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg1){
+        conf1 = YOLOmsg1->confidence;
 
-        pixel_u = YOLOmsg->u;
-        pixel_v = YOLOmsg->v;
-        for
-        pixel_vec << pixel_u, pixel_v, 1;
+        pixel_vec1 << YOLOmsg1->u, YOLOmsg1->v, 1.0;
 
+        // STILL WRONG
         geometry_msgs::msg::Point GPSmsg;
-        
-        GPSmsg.x = placeholder_1;
-        GPSmsg.y = placeholder_2;
-        GPSmsg.z = placeholder_3;
-
+        GPSmsg.x = target_point.x();
+        GPSmsg.y = target_point.y();
+        GPSmsg.z = target_point.z();
         publisher_->publish(GPSmsg);
     }
 
-void CalcGPSNode::projectionFormula(
-    const Eigen::Vector4d &pixel_vec, 
-    const Eigen::Matrix4d &transformation_mat)
+void CalcGPSNode::pixelCallback2(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg2){
+        conf2 = YOLOmsg2->confidence;
+
+        pixel_vec2 << YOLOmsg2->u, YOLOmsg2->v, 1;
+    }
+
+void CalcGPSNode::pixelCallback3(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg3){
+        conf3 = YOLOmsg3->confidence;
+
+        pixel_vec3 << YOLOmsg3->u, YOLOmsg3->u, 1;
+    }
+
+        // CALLBACK BUAT conf
+        // rotational matrix will be the functions of drone's rotation
+
+void CalcGPSNode::confCallback1(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg1){
+        // drone1_xpos = confmsg1 -> position[0];
+        // drone1_ypos = confmsg1 -> position[1];
+        // drone1_zpos = confmsg1 -> position[2];
+
+        drone1_pos_vec << confmsg1 -> position[0], confmsg1 -> position[1], confmsg1 -> position[2];
+        // Check if PX4 quaternion order is [w,x,y,z] or [x,y,z,w]
+        q1 = Eigen::Quaterniond(confmsg1->q[0], confmsg1->q[1], confmsg1->q[2], confmsg1->q[3]);
+        rot_mat1 = q1.toRotationMatrix();
+
+    }
+
+void CalcGPSNode::confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg2){
+        // drone2_xpos = confmsg2 -> position[0];
+        // drone2_ypos = confmsg2 -> position[1];
+        // drone2_zpos = confmsg2 -> position[2];
+
+        drone2_pos_vec << confmsg2 -> position[0], confmsg2 -> position[1], confmsg2 -> position[2];
+        q2 = Eigen::Quaterniond(confmsg2->q[0], confmsg2->q[1], confmsg2->q[2], confmsg2->q[3]);
+        rot_mat2 = q2.toRotationMatrix();
+    }
+
+void CalcGPSNode::confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg3){
+        // drone3_xpos = confmsg3 -> position[0];
+        // drone3_ypos = confmsg3 -> position[1];
+        // drone3_zpos = confmsg3 -> position[2];
+
+        drone3_pos_vec << confmsg3 -> position[0], confmsg3 -> position[1], confmsg3 -> position[2];
+        q3 = Eigen::Quaterniond(confmsg3->q[0], confmsg3->q[1], confmsg3->q[2], confmsg3->q[3]);
+        rot_mat3 = q3.toRotationMatrix();
+    }
+
+bool CalcGPSNode::ready(){
+        // if(conf1>0.5 || conf2>0.5 || conf3>0.5);
+        return (conf1 > 0.5f && conf2 > 0.5f && conf3 > 0.5f);
+}
+
+    // start triangulation
+void CalcGPSNode::projectionFormula()
     {
         // x = K^-1 * x'
-        proj_vec = cam_mat.inverse() * rot_mat.inverse() * pixel_vec;
-        proj_uvec = proj_vec/proj_vec.norm();   
+        // Eigen::Vector3d cam_mat_curr =  cam_mat_curr[0];    
+        // INGETIN URUTANNYA 
+        proj_vec1 =  rot_mat1.transpose() * cam_mat.inverse() * pixel_vec1;
+        proj_vec2 =  rot_mat2.transpose() * cam_mat.inverse() * pixel_vec2;
+        proj_vec3 =  rot_mat3.transpose() * cam_mat.inverse() * pixel_vec3;
+        
+        proj_uvec1 = proj_vec1/proj_vec1.norm();
+        proj_uvec2 = proj_vec2/proj_vec2.norm();
+        proj_uvec3 = proj_vec3/proj_vec3.norm();
+         
     }
 
-void CalcGPSNode::MVMP_triangulation(){
-    Eigen::Matrix3d A_sum = Eigen::Matrix3d::Zero();
-    Eigen::Vector3d b_sum = Eigen::Vector3d::Zero();
+bool CalcGPSNode::MVMP_triangulation(){
     
-    for(int i = 0; i < .size(); i ++)
-    {
-        Eigen::Vector3d cur_b = b_vec_[i];
-        Eigen::RowVector3d v_t = cur_b.transpose();
+    std::vector<Eigen::Vector3d> b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};
+    std::vector<Eigen::Vector3d> o_vec = {drone1_pos_vec, drone2_pos_vec, drone3_pos_vec};
+    A_sum.setZero();
+    B_sum.setZero();
+    
+    for (int i = 0; i < 3; ++i) {
+        Eigen::Matrix3d  B = Eigen::Matrix3d::Identity() - b_vec[i] * b_vec[i].transpose();
+        
+        A_sum += B;
+        B_sum += B * o_vec[i];
+    }
+     
+    Eigen::Vector3d target_point = A_sum.ldlt().solve(B_sum);
+    // res = A_sum.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(b_sum);
 
-      //  std::cout << cur_b << std::endl;
-
-        Eigen::Matrix3d A = Eigen::Matrix3d::Identity() - cur_b * v_t;
-      //  std::cout << A << std::endl;
-
-        A_sum += A;
-        b_sum += (A * cams_[i].t_inv());
-
+    // 1st check: cek determinant
+    double det = A_sum.determinant();
+    if (std::abs(det) < 1e-10) {
+        // RCLCPP_WARN(this->get_logger(), "Triangulation failed: A_sum is near-singular (det=%.2e)", det);
+        target_valid = false;
+        return false;
     }
 
-    res = A_sum.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(b_sum);
-
+    target_point = A_sum.ldlt().solve(B_sum);
     
+    // 2nd check: cek solution
+    if (!target_point.allFinite()) {
+        // RCLCPP_WARN(this->get_logger(), "Triangulation failed: result contains NaN or Inf");
+        target_valid = false;
+        return false;
+    }
+    
+    // 3rd check: check if point is in front of all cameras 
+    for (int i = 0; i < 3; ++i) {
+        Eigen::Vector3d to_point = target_point - o_vec[i];
+        double depth = to_point.dot(b_vec[i]);
+        if (depth < 0.0) {
+            // RCLCPP_WARN(this->get_logger(), "Triangulation warning: point behind camera %d (depth=%.2f)", i+1, depth);
+        }
+    }
+
+    target_valid = true;
+
+    return true;
 }
+
+void CalcGPSNode::timerCallback(){
+
+//     if (!allDataReceived()) {
+//     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+//         "Waiting for data: pixel[%d,%d,%d] odom[%d,%d,%d]",
+//         pixel1_received, pixel2_received, pixel3_received,
+//         odom1_received, odom2_received, odom3_received);
+//     return;
+// }
+if (!ready()) {
+    return;
+}
+
+projectionFormula();
+
+if (MVMP_triangulation()) {
+    // publish 
+    geometry_msgs::msg::Point GPSmsg;
+    GPSmsg.x = target_point.x();
+    GPSmsg.y = target_point.y();
+    GPSmsg.z = target_point.z();
+    publisher_->publish(GPSmsg);
+    
+    // RCLCPP_INFO(this->get_logger(), 
+    //     "Published target: x=%.2f, y=%.2f, z=%.2f", 
+    //     GPSmsg.x, GPSmsg.y, GPSmsg.z);
+} else {
+    RCLCPP_WARN(this->get_logger(), "Triangulation failed");
+}
+}
+  /*
+    if (ready() && odom1_received && odom2_received && odom3_received) {
+        projectionFormula();
+        if (MVMP_triangulation()) {
+            geometry_msgs::msg::Point GPSmsg;
+            GPSmsg.x = target_point.x();
+            GPSmsg.y = target_point.y();
+            GPSmsg.z = target_point.z();
+            publisher_->publish(GPSmsg);
+            
+            RCLCPP_INFO(this->get_logger(), "Published target: x=%.2f, y=%.2f, z=%.2f", 
+                       GPSmsg.x, GPSmsg.y, GPSmsg.z);
+        }
+    }
+
+    */
 
 int main(int argc, char **argv)
 {
@@ -163,7 +354,5 @@ int main(int argc, char **argv)
 
     }
     */
-    
 
-
-
+  
