@@ -1,1 +1,0 @@
-rclcpp;sensor_msgs;image_transport;cv_bridge;opencv;pkg-config;gstreamer1.0-tools;gstreamer1.0-plugins-base;gstreamer1.0-plugins-good;gstreamer1.0-plugins-bad;gstreamer1.0-plugins-ugly;gstreamer1.0-nvcodec;ament_lint_auto;ament_lint_common

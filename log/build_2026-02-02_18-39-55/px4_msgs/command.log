@@ -1,6 +1,0 @@
-Invoking command in '/home/ravi/capstone-drone-project/build/px4_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/ravi/capstone-drone-project/ros2_ws/px4_msgs -DCMAKE_INSTALL_PREFIX=/home/ravi/capstone-drone-project/install/px4_msgs
-Invoked command in '/home/ravi/capstone-drone-project/build/px4_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/ravi/capstone-drone-project/ros2_ws/px4_msgs -DCMAKE_INSTALL_PREFIX=/home/ravi/capstone-drone-project/install/px4_msgs
-Invoking command in '/home/ravi/capstone-drone-project/build/px4_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/ravi/capstone-drone-project/build/px4_msgs -- -j4 -l4
-Invoked command in '/home/ravi/capstone-drone-project/build/px4_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/ravi/capstone-drone-project/build/px4_msgs -- -j4 -l4
-Invoking command in '/home/ravi/capstone-drone-project/build/px4_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/ravi/capstone-drone-project/build/px4_msgs
-Invoked command in '/home/ravi/capstone-drone-project/build/px4_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/ravi/capstone-drone-project/build/px4_msgs

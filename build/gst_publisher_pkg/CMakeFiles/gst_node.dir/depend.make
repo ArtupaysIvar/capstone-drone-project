@@ -1,2 +1,0 @@
-# Empty dependencies file for gst_node.
-# This may be replaced when dependencies are built.

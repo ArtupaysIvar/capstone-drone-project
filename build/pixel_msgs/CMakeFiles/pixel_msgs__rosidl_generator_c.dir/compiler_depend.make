@@ -1,2 +1,0 @@
-# Empty compiler generated dependencies file for pixel_msgs__rosidl_generator_c.
-# This may be replaced when dependencies are built.
