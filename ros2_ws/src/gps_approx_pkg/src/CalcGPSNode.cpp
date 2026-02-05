@@ -98,12 +98,11 @@ private:
     // buat IRMP_triangulation
     int max_iters_ = 10;
     Eigen::Vector3d prev_point;
-    Eigen::Vector3d error_vec;
-    Eigen::Vector3d cam_to_P_vec;
-    // double dist_squared;
-    double cam_to_P_vec_dist_squared;
-    double weight_squared;
-    double irmp_error;
+    // Eigen::Vector3d error_vec;
+    // Eigen::Vector3d cam_to_P_vec;
+    // double cam_to_P_vec_dist_squared;
+    // double weight_squared;
+    // double irmp_error;
 
     // Eigen::Matrix3d A_sum = Eigen::Matrix3d::Zero();
     // Eigen::Vector3d b_sum = Eigen::Vector3d::Zero();
@@ -349,14 +348,13 @@ bool CalcGPSNode::IRMP_triangulation()
 
             double weight_squared = 1.0 / cam_to_P_vec_dist_squared;
             
-            irmp_error = weight_squared * error_vec.squaredNorm();
+            double irmp_error = weight_squared * error_vec.squaredNorm();
             
             // e_i(p) = ||B_i * (p - o_i)||^2 / ||p - o_i||^2
             A_sum += B_proj_mat[i] * weight_squared;
             B_sum += weight_squared * ((B_proj_mat[i] * o_vec[i]) + irmp_error * cam_to_P_vec);
         }
         
-        // Solve weighted system for next estimate
         target_point = A_sum.ldlt().solve(B_sum);
         
         // all finite
@@ -365,7 +363,6 @@ bool CalcGPSNode::IRMP_triangulation()
             return false;
         }
         
-        // Check convergence
         double update_norm = (target_point - prev_point).norm();
         if (update_norm < 1e-3) {  
             // RCLCPP_DEBUG(this->get_logger(), 
