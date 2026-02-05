@@ -36,6 +36,7 @@ private:
     bool ready();
     void projectionFormula();
     bool MVMP_triangulation();
+    bool IRMP_triangulation();
 
 
     // buat pixelCallback
@@ -85,10 +86,24 @@ private:
     Eigen::Vector3d proj_uvec3;
     
     // buat MVMP_triangulation
+    std::vector<Eigen::Vector3d> b_vec;
+    std::vector<Eigen::Vector3d> o_vec;
+    std::vector<Eigen::Matrix3d> B_proj_mat;
+
     Eigen::Matrix3d A_sum;
     Eigen::Vector3d B_sum;
     Eigen::Vector3d target_point;
     bool target_valid = false;
+
+    // buat IRMP_triangulation
+    int max_iters_ = 10;
+    Eigen::Vector3d prev_point;
+    Eigen::Vector3d error_vec;
+    Eigen::Vector3d cam_to_P_vec;
+    // double dist_squared;
+    double cam_to_P_vec_dist_squared;
+    double weight_squared;
+    double irmp_error;
 
     // Eigen::Matrix3d A_sum = Eigen::Matrix3d::Zero();
     // Eigen::Vector3d b_sum = Eigen::Vector3d::Zero();
@@ -137,6 +152,7 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         publisher_ = this->create_publisher<geometry_msgs::msg::Point>
         ("point_location", 10);
         
+        B_proj_mat.resize(3);
         double fx = 400.0, fy = 400.0, cx = 320.0, cy = 240.0;
         cam_mat << fx, 0,  cx,
                     0,  fy, cy,
@@ -233,16 +249,16 @@ void CalcGPSNode::projectionFormula()
 
 bool CalcGPSNode::MVMP_triangulation(){
     
-    std::vector<Eigen::Vector3d> b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};
-    std::vector<Eigen::Vector3d> o_vec = {drone1_pos_vec, drone2_pos_vec, drone3_pos_vec};
+    b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};
+    o_vec = {drone1_pos_vec, drone2_pos_vec, drone3_pos_vec};
     A_sum.setZero();
     B_sum.setZero();
     
     for (int i = 0; i < 3; ++i) {
-        Eigen::Matrix3d  B = Eigen::Matrix3d::Identity() - b_vec[i] * b_vec[i].transpose();
+        B_proj_mat[i] = Eigen::Matrix3d::Identity() - b_vec[i] * b_vec[i].transpose();
         
-        A_sum += B;
-        B_sum += B * o_vec[i];
+        A_sum += B_proj_mat[i];
+        B_sum += B_proj_mat[i] * o_vec[i];
     }
      
     // target_point = A_sum.ldlt().solve(B_sum);
@@ -280,6 +296,97 @@ bool CalcGPSNode::MVMP_triangulation(){
 
     return true;
 }
+bool CalcGPSNode::IRMP_triangulation()
+{   
+    b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};
+    o_vec = {drone1_pos_vec, drone2_pos_vec, drone3_pos_vec};
+    
+    // B_proj_mat(3);
+    for (int i = 0; i < 3; ++i) {
+        B_proj_mat[i] = Eigen::Matrix3d::Identity() - b_vec[i] * b_vec[i].transpose();
+    }
+
+    A_sum.setZero();
+    B_sum.setZero();
+
+    for(int i = 0; i < 3; ++i){
+        A_sum += B_proj_mat[i];
+        B_sum += B_proj_mat[i] * o_vec[i];
+    }
+     
+    // target_point = A_sum.ldlt().solve(B_sum);
+    // res = A_sum.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(b_sum);
+
+    // 1st check: cek determinant
+    double det = A_sum.determinant();
+
+    if (std::abs(det) < 1e-10) {
+        // RCLCPP_WARN(this->get_logger(), "Triangulation failed: A_sum is near-singular (det=%.2e)", det);
+        target_valid = false;
+        return false;
+    }
+
+    target_point = A_sum.ldlt().solve(B_sum); // solve for the first time using mvmp
+    
+    for(int iter = 1; iter < max_iters_; iter++)
+    {
+        prev_point = target_point;
+
+        A_sum.setZero();
+        B_sum.setZero();
+        
+        for(int i = 0; i < 3; i ++)
+        {
+
+            // Eigen::Vector3d op = prev_point - o_vec[i];
+            // cam_to_P_vec = prev_point - o_vec[i];
+            // cam_to_P_vec_dist_squared = cam_to_P_vec.squaredNorm();
+            // error_vec = B_proj_mat[i] * cam_to_P_vec;
+
+            Eigen::Vector3d cam_to_P_vec = prev_point - o_vec[i];
+            double cam_to_P_vec_dist_squared = cam_to_P_vec.squaredNorm();
+            Eigen::Vector3d error_vec = B_proj_mat[i] * cam_to_P_vec;
+
+            double weight_squared = 1.0 / cam_to_P_vec_dist_squared;
+            
+            irmp_error = weight_squared * error_vec.squaredNorm();
+            
+            // e_i(p) = ||B_i * (p - o_i)||^2 / ||p - o_i||^2
+            A_sum += B_proj_mat[i] * weight_squared;
+            B_sum += weight_squared * ((B_proj_mat[i] * o_vec[i]) + irmp_error * cam_to_P_vec);
+        }
+        
+        // Solve weighted system for next estimate
+        target_point = A_sum.ldlt().solve(B_sum);
+        
+        // all finite
+        if (!target_point.allFinite()) {
+            target_valid = false;
+            return false;
+        }
+        
+        // Check convergence
+        double update_norm = (target_point - prev_point).norm();
+        if (update_norm < 1e-3) {  
+            // RCLCPP_DEBUG(this->get_logger(), 
+            //     "IRMP converged in %d iterations (delta=%.6f)", 
+            //     iter, update_norm);
+            break;
+        }
+    }
+    
+    for (int i = 0; i < 3; ++i) {
+        Eigen::Vector3d to_point = target_point - o_vec[i];
+        double depth = to_point.dot(B_proj_mat[i]);
+        if (depth < 0.0) {
+            target_valid = false;
+            return false;
+        }
+    }
+    
+    target_valid = true;
+    return true;
+}
 
 void CalcGPSNode::timerCallback(){
 
@@ -292,8 +399,9 @@ if (!ready()) {
     }
 
 projectionFormula();
+// if (MVMP_triangulation()) {
 
-if (MVMP_triangulation()) {
+if (IRMP_triangulation()) {
     // publish 
     geometry_msgs::msg::Point GPSmsg;
     GPSmsg.x = target_point.x();
