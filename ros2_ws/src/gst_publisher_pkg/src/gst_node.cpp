@@ -13,7 +13,7 @@ public:
     
 
     std::string pipeline =
-           "udpsrc port=5000 caps=\"video/mpegts\" ! "
+    "udpsrc port=5000 caps=\"video/mpegts\" ! "
     "tsdemux ! "
     "h264parse ! "
     "avdec_h264 ! "

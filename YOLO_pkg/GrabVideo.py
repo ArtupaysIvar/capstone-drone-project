@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-import os
+# import os
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
@@ -21,9 +20,6 @@ class GrabVideo(Node):
     def __init__(self):
         super().__init__('grab_video')
 
-        # --------------------
-        # Parameters
-        # --------------------
         self.declare_parameter('image_topic', '/camera')
         self.declare_parameter('publish_topic', '/pixel_coordinates')
         self.declare_parameter('confidence_threshold', 0.5)
@@ -36,9 +32,6 @@ class GrabVideo(Node):
         rate_hz = self.get_parameter('inference_rate_hz').value
         self.debug_gui = self.get_parameter('debug_gui').value
 
-        # --------------------
-        # ROS interfaces
-        # --------------------
         self.bridge = CvBridge()
 
         self.sub = self.create_subscription(
