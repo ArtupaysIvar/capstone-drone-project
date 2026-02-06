@@ -135,7 +135,6 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         ("pixel_topic3", 10, std::bind(&CalcGPSNode::pixelCallback3, this, 
         std::placeholders::_1));
         
-        // GA MUNGKIN PAKE PIXEL MESSAGE
         drone1_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
         ("/px4_1/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback1, this, 
         std::placeholders::_1));
@@ -295,6 +294,7 @@ bool CalcGPSNode::MVMP_triangulation(){
 
     return true;
 }
+
 bool CalcGPSNode::IRMP_triangulation()
 {   
     b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};

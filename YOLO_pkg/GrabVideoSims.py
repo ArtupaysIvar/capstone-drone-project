@@ -55,10 +55,10 @@ class GrabVideo(Node):
         results1 = self.model.predict(current_frame1, classes=[0, 2])
 
         if len(results1[0].boxes) > 0:
-            x_mid1, y_mid1, width1, height1 = results1[0].boxes.xywh[0]
+            x_mid1, y_mid1 = results1[0].boxes.xywh[0]
             confidence1 = results1[0].boxes.conf
 
-            self.det1 = (int(x_mid1), int(y_mid1), confidence1, width1)
+            self.det1 = (int(x_mid1), int(y_mid1), confidence1)
         # boxes = results[0].boxes.xywh
         # confidences = results[0].boxes.conf
 
@@ -71,7 +71,7 @@ class GrabVideo(Node):
         current_frame2 = self.bridge.imgmsg_to_cv2(data_cam2, desired_encoding="bgr8")
         results2 = self.model.predict(current_frame2, classes=[0, 2])
         if len(results2[0].boxes) > 0:
-            x_mid2, y_mid2, width2, height2 = results2[0].boxes.xywh[0]
+            x_mid2, y_mid2 = results2[0].boxes.xywh[0]
             confidence2 = results2[0].boxes.conf
 
             self.det2 = (int(x_mid2), int(y_mid2), confidence2)
@@ -80,7 +80,7 @@ class GrabVideo(Node):
         current_frame3 = self.bridge.imgmsg_to_cv2(data_cam3, desired_encoding="bgr8")
         results3 = self.model.predict(current_frame3, classes=[0, 2])
         if len(results3[0].boxes) > 0:
-            x_mid3, y_mid3, width3, height3 = results3[0].boxes.xywh[0]
+            x_mid3, y_mid3 = results3[0].boxes.xywh[0]
             confidence3 = results3[0].boxes.conf
 
             self.det3 = (int(x_mid3), int(y_mid3), confidence3)
