@@ -7,8 +7,8 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-import cv2
-import numpy as np
+# import cv2
+# import numpy as np
 from ultralytics import YOLO
 
 from pixel_msgs.msg import PixelCoordinates
@@ -19,6 +19,7 @@ class GrabVideo(Node):
 
     def __init__(self):
         super().__init__('grab_video')
+
         self.model = YOLO('yolov8n.pt')
         self.bridge = CvBridge()
 
@@ -53,10 +54,11 @@ class GrabVideo(Node):
         current_frame1 = self.bridge.imgmsg_to_cv2(data_cam1, desired_encoding="bgr8")
         results1 = self.model.predict(current_frame1, classes=[0, 2])
 
-        x_mid1, y_mid1, width1, height1 = results1[0].boxes.xywh
-        confidence1 = results1[0].boxes.conf
+        if len(results1[0].boxes) > 0:
+            x_mid1, y_mid1, width1, height1 = results1[0].boxes.xywh[0]
+            confidence1 = results1[0].boxes.conf
 
-        self.det1 = (int(x_mid1), int(y_mid1), confidence1, width1)
+            self.det1 = (int(x_mid1), int(y_mid1), confidence1, width1)
         # boxes = results[0].boxes.xywh
         # confidences = results[0].boxes.conf
 
@@ -68,20 +70,20 @@ class GrabVideo(Node):
     def drone2_cam_callback(self, data_cam2):
         current_frame2 = self.bridge.imgmsg_to_cv2(data_cam2, desired_encoding="bgr8")
         results2 = self.model.predict(current_frame2, classes=[0, 2])
-        
-        x_mid2, y_mid2, width2, height2 = results2[0].boxes.xywh
-        confidence2 = results2[0].boxes.conf
+        if len(results2[0].boxes) > 0:
+            x_mid2, y_mid2, width2, height2 = results2[0].boxes.xywh[0]
+            confidence2 = results2[0].boxes.conf
 
-        self.det2 = (int(x_mid2), int(y_mid2), confidence2)
+            self.det2 = (int(x_mid2), int(y_mid2), confidence2)
 
     def drone3_cam_callback(self, data_cam3):
         current_frame3 = self.bridge.imgmsg_to_cv2(data_cam3, desired_encoding="bgr8")
         results3 = self.model.predict(current_frame3, classes=[0, 2])
-        
-        x_mid3, y_mid3, width3, height3 = results3[0].boxes.xywh
-        confidence3 = results3[0].boxes.conf
+        if len(results3[0].boxes) > 0:
+            x_mid3, y_mid3, width3, height3 = results3[0].boxes.xywh[0]
+            confidence3 = results3[0].boxes.conf
 
-        self.det3 = (int(x_mid3), int(y_mid3), confidence3)
+            self.det3 = (int(x_mid3), int(y_mid3), confidence3)
 
     def timer_callback(self):
         now = self.get_clock().now().to_msg()
