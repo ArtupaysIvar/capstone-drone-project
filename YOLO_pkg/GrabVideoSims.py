@@ -19,7 +19,9 @@ class GrabVideo(Node):
 
     def __init__(self):
         super().__init__('grab_video')
-        
+        self.model = YOLO('yolov8n.pt')
+        self.bridge = CvBridge()
+
         # subscription
         self.subscription1 = self.create_subscription(
             Image, 'camera_drone1', 
@@ -47,47 +49,71 @@ class GrabVideo(Node):
         self.timer = self.create_timer(0.5, self.timer_callback)
 
     def drone1_cam_callback(self, data_cam1):    
-        # Convert ROS Image message to OpenCV image
-        current_frame = self.br.imgmsg_to_cv2(data_cam1, desired_encoding="bgr8")
-        image = current_frame
-        # Object Detection
-        results = model.predict(image, classes=[0, 2])
-        img = results[0].plot()
-        # Show Results
-        cv2.imshow('Detected Frame', img)    
-        cv2.waitKey(1)
+        # convert ROS Image message to OpenCV image
+        current_frame1 = self.bridge.imgmsg_to_cv2(data_cam1, desired_encoding="bgr8")
+        results1 = self.model.predict(current_frame1, classes=[0, 2])
+
+        x_mid1, y_mid1, width1, height1 = results1[0].boxes.xywh
+        confidence1 = results1[0].boxes.conf
+
+        self.det1 = (int(x_mid1), int(y_mid1), confidence1, width1)
+        # boxes = results[0].boxes.xywh
+        # confidences = results[0].boxes.conf
+
+        # if boxes & confidences is not None:
+        #     for box, conf in zip(boxes, confidences):
+        #         x_mid1, y_mid1, width1, height1 = box
+        #         curr_conf = conf
 
     def drone2_cam_callback(self, data_cam2):
-        # Convert ROS Image message to OpenCV image
-        current_frame = self.br.imgmsg_to_cv2(data_cam2, desired_encoding="bgr8")
-        image = current_frame
-        # Object Detection
-        results = model.predict(image, classes=[0, 2])
-        img = results[0].plot()
-        # Show Results
-        cv2.imshow('Detected Frame', img)    
-        cv2.waitKey(1)
+        current_frame2 = self.bridge.imgmsg_to_cv2(data_cam2, desired_encoding="bgr8")
+        results2 = self.model.predict(current_frame2, classes=[0, 2])
+        
+        x_mid2, y_mid2, width2, height2 = results2[0].boxes.xywh
+        confidence2 = results2[0].boxes.conf
+
+        self.det2 = (int(x_mid2), int(y_mid2), confidence2)
 
     def drone3_cam_callback(self, data_cam3):
-        # Display the message on the console
-        self.get_logger().info('Receiving video frame')
-    
-        # Convert ROS Image message to OpenCV image
-        current_frame = self.br.imgmsg_to_cv2(data_cam3, desired_encoding="bgr8")
-        image = current_frame
-        # Object Detection
-        results = model.predict(image, classes=[0, 2])
-        img = results[0].plot()
-        # Show Results
-        cv2.imshow('Detected Frame', img)    
-        cv2.waitKey(1)
-    def timer_callback():
-        msg = PixelCoordinates()
-
-        self.publisher1.publish(msg1)
-        self.publisher2.publish(msg2)
-        self.publisher3.publish(msg3)
+        current_frame3 = self.bridge.imgmsg_to_cv2(data_cam3, desired_encoding="bgr8")
+        results3 = self.model.predict(current_frame3, classes=[0, 2])
         
+        x_mid3, y_mid3, width3, height3 = results3[0].boxes.xywh
+        confidence3 = results3[0].boxes.conf
+
+        self.det3 = (int(x_mid3), int(y_mid3), confidence3)
+
+    def timer_callback(self):
+        now = self.get_clock().now().to_msg()
+
+        if self.det1 is not None:
+            x, y, conf = self.det1
+            msg = PixelCoordinates()
+            msg.header.stamp = now
+            msg.u = x
+            msg.v = y
+            msg.confidence = conf
+            self.publisher_1.publish(msg)
+
+        if self.det2 is not None:
+            x, y, conf = self.det2
+            msg = PixelCoordinates()
+            msg.header.stamp = now
+            msg.u = x
+            msg.v = y
+            msg.confidence = conf
+            self.publisher_2.publish(msg)
+
+        if self.det3 is not None:
+            x, y, conf = self.det3
+            msg = PixelCoordinates()
+            msg.header.stamp = now
+            msg.u = x
+            msg.v = y
+            msg.confidence = conf
+            self.publisher_3.publish(msg)
+
+
 def main(args=None):
     rclpy.init(args=args)
     node = GrabVideo()
