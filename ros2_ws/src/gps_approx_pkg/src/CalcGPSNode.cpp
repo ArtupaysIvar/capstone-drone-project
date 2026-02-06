@@ -281,15 +281,15 @@ bool CalcGPSNode::MVMP_triangulation(){
     }
     
     // 3rd check: check if point is in front of all cameras 
-    for (int i = 0; i < 3; ++i) {
-        Eigen::Vector3d to_point = target_point - o_vec[i];
-        double depth = to_point.dot(b_vec[i]);
-        if (depth < 0.0) {
-            // RCLCPP_WARN(this->get_logger(), "Triangulation warning: point behind camera %d (depth=%.2f)", i+1, depth);
-            target_valid = false;
-            return false;
-        }
-    }
+    // for (int i = 0; i < 3; ++i) {
+    //     Eigen::Vector3d to_point = target_point - o_vec[i];
+    //     double depth = to_point.dot(b_vec[i]);
+    //     if (depth < 0.0) {
+    //         // RCLCPP_WARN(this->get_logger(), "Triangulation warning: point behind camera %d (depth=%.2f)", i+1, depth);
+    //         target_valid = false;
+    //         return false;
+    //     }
+    // }
 
     target_valid = true;
 
@@ -372,14 +372,14 @@ bool CalcGPSNode::IRMP_triangulation()
         }
     }
     
-    for (int i = 0; i < 3; ++i) {
-        Eigen::Vector3d to_point = target_point - o_vec[i];
-        double depth = to_point.dot(B_proj_mat[i]);
-        if (depth < 0.0) {
-            target_valid = false;
-            return false;
-        }
-    }
+    // for (int i = 0; i < 3; ++i) {
+    //     Eigen::Vector3d to_point = target_point - o_vec[i];
+    //     double depth = to_point.dot(B_proj_mat[i]);
+    //     if (depth < 0.0) {
+    //         target_valid = false;
+    //         return false;
+    //     }
+    // }
     
     target_valid = true;
     return true;
