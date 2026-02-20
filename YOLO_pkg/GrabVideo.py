@@ -1,152 +1,118 @@
+
 #!/usr/bin/env python3
 
-# import os
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+import threading
 
 import cv2
-import numpy as np
+# import numpy as np
 from ultralytics import YOLO
 
 from pixel_msgs.msg import PixelCoordinates
 from ament_index_python.packages import get_package_share_directory
 
 
-class GrabVideo(Node):
+class GrabVideoSims(Node):
 
     def __init__(self):
         super().__init__('grab_video')
 
-        self.declare_parameter('image_topic', '/camera')
-        self.declare_parameter('publish_topic', '/pixel_coordinates')
-        self.declare_parameter('confidence_threshold', 0.5)
-        self.declare_parameter('inference_rate_hz', 10.0)
-        self.declare_parameter('debug_gui', False)
-
-        image_topic = self.get_parameter('image_topic').value
-        publish_topic = self.get_parameter('publish_topic').value
-        self.conf_thresh = self.get_parameter('confidence_threshold').value
-        rate_hz = self.get_parameter('inference_rate_hz').value
-        self.debug_gui = self.get_parameter('debug_gui').value
-
+        self.model = YOLO('yolov8n.pt')
+        # self.model.to("cpu")
         self.bridge = CvBridge()
 
-        self.sub = self.create_subscription(
-            Image,
-            image_topic,
-            self.image_callback,
-            qos_profile_sensor_data
-        )
+        self.det1 = None
+        self.det2 = None
+        self.det3 = None
 
-        self.pub = self.create_publisher(
-            PixelCoordinates,
-            publish_topic,
-            10
-        )
+        self.latest_frames = {
+            1: None,
+            2: None,
+            3: None
+        }
+        self.lock = threading.Lock()
 
-        # --------------------
-        # YOLO model
-        # --------------------
-        model_path = os.path.join(
-            get_package_share_directory('vidgrabber_pkg'),
-            'models',
-            'yolov8n.pt'
-        )
+        # subscription
+        self.subscription1 = self.create_subscription(
+            Image, '/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/image',
+            lambda msg: self.camera_callback(msg, 1), 10)
+        
+        self.subscription2 = self.create_subscription(
+            Image, '/world/default/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/image', 
+            lambda msg: self.camera_callback(msg, 2), 10)
 
-        self.get_logger().info(f'Loading YOLO model: {model_path}')
-        self.model = YOLO(yolov8n.pt)
+        self.subscription3 = self.create_subscription(
+            Image, 'camera_drone3', 
+            lambda msg: self.camera_callback(msg, 3), 10)
+        
+        
+        # publishers
+        self.pub = {
+            1: self.create_publisher(PixelCoordinates, 'pixel_topic1', 10),
+            2: self.create_publisher(PixelCoordinates, 'pixel_topic2', 10),
+            3: self.create_publisher(PixelCoordinates, 'pixel_topic3', 10),
+        }
+        # timer
+        self.timer = self.create_timer(0.5, self.timer_callback)
+        cv2.namedWindow("Drone 1", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("Drone 2", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("Drone 3", cv2.WINDOW_NORMAL)
 
-        # --------------------
-        # State
-        # --------------------
-        self.latest_frame = None
-        self.latest_msg = None
-
-        # --------------------
-        # Timer for inference
-        # --------------------
-        self.timer = self.create_timer(
-            1.0 / rate_hz,
-            self.process_frame
-        )
-
-        self.get_logger().info('GrabVideo node started.')
-
-    # ============================================================
-    # Callbacks
-    # ============================================================
-
-    def image_callback(self, msg: Image):
-        """Lightweight image receiver."""
-        try:
-            self.latest_frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-            self.latest_msg = msg
-        except Exception as e:
-            self.get_logger().warn(f'CV bridge failed: {e}')
-
-    def process_frame(self):
-        """Heavy YOLO inference (runs at fixed rate)."""
-        if self.latest_frame is None:
-            return
-
-        results = self.model.predict(
-            self.latest_frame,
-            conf=self.conf_thresh,
-            classes=[0],   # person only
-            verbose=False
-        )
-
-        detections = results[0].boxes
-        if detections is None or len(detections) == 0:
-            return
-
-        # --------------------
-        # Select BEST detection
-        # --------------------
-        best_box = max(detections, key=lambda b: b.conf[0])
-
-        x1, y1, x2, y2 = best_box.xyxy[0].cpu().numpy().astype(int)
-        confidence = float(best_box.conf[0])
-
-        u = int((x1 + x2) / 2)
-        v = int((y1 + y2) / 2)
-
-        # --------------------
-        # Publish message
-        # --------------------
-        msg_out = PixelCoordinates()
-        msg_out.header = self.latest_msg.header
-        msg_out.u = u
-        msg_out.v = v
-        msg_out.confidence = confidence
-
-        self.pub.publish(msg_out)
-
-        self.get_logger().info(
-            f'Person detected @ ({u}, {v}) | conf={confidence:.2f}'
-        )
-
-        # --------------------
-        # Optional debug GUI
-        # --------------------
-        if self.debug_gui:
-            frame = self.latest_frame.copy()
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.circle(frame, (u, v), 4, (0, 0, 255), -1)
-            cv2.imshow('YOLO Detection', frame)
-            cv2.waitKey(1)
+    def camera_callback(self, msg, drone_id):
+        frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        with self.lock:
+            self.latest_frames[drone_id] = frame
 
 
-# ============================================================
-# Main
-# ============================================================
+    def timer_callback(self):
 
+        # Copy frames safely
+        with self.lock:
+            frames_copy = {}
+            for k, v in self.latest_frames.items():
+                if v is not None:
+                    frames_copy[k] = v.copy()
+                else:
+                    frames_copy[k] = None
+
+        # Process each drone
+        for drone_id, frame in frames_copy.items():
+
+            if frame is None:
+                continue
+
+            results = self.model.predict(frame, classes=[0, 2], verbose=False)
+
+            # Draw detections
+            annotated_frame = results[0].plot()
+
+            # Display window
+            cv2.imshow(f"Drone {drone_id}", annotated_frame)
+
+            # Publish detection if exists
+            if len(results[0].boxes) > 0:
+                x_mid, y_mid, _, _ = results[0].boxes.xywh[0]
+                confidence = float(results[0].boxes.conf[0])
+
+                msg = PixelCoordinates()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.u = float(x_mid)
+                msg.v = float(y_mid)
+                msg.confidence = confidence
+
+                self.pub[drone_id].publish(msg)
+
+        # Required for OpenCV window refresh
+        cv2.waitKey(1)
+
+        
 def main(args=None):
     rclpy.init(args=args)
-    node = GrabVideo()
+    node = GrabVideoSims()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

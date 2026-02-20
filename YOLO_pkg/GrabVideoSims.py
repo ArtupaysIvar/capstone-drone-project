@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-# import os
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+import threading
 
 # import cv2
 # import numpy as np
@@ -15,7 +15,7 @@ from pixel_msgs.msg import PixelCoordinates
 from ament_index_python.packages import get_package_share_directory
 
 
-class GrabVideo(Node):
+class GrabVideoSims(Node):
 
     def __init__(self):
         super().__init__('grab_video')
@@ -23,102 +23,78 @@ class GrabVideo(Node):
         self.model = YOLO('yolov8n.pt')
         self.bridge = CvBridge()
 
+        self.det1 = None
+        self.det2 = None
+        self.det3 = None
+
+        self.latest_frames = {
+            1: None,
+            2: None,
+            3: None
+        }
+        self.lock = threading.Lock()
+
         # subscription
         self.subscription1 = self.create_subscription(
-            Image, 'camera_drone1', 
-            self.drone1_cam_callback, 10)
-
+            Image, '/world/default/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/image',
+            lambda msg: self.camera_callback(msg, 1), 10)
+        
         self.subscription2 = self.create_subscription(
-            Image, 'camera_drone2', 
-            self.drone2_cam_callback, 10)
+            Image, '/world/default/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/image', 
+            lambda msg: self.camera_callback(msg, 2), 10)
 
         self.subscription3 = self.create_subscription(
-            Image, 'camera_drone3', 
-            self.drone3_cam_callback, 10)
+            Image, '/world/default/model/x500_mono_cam_down_3/link/camera_link/sensor/camera/image', 
+            lambda msg: self.camera_callback(msg, 3), 10)
         
         # publishers
-        self.publisher_1 = self.create_publisher(
-            PixelCoordinates, 'pixel_topic1', 10)
-        
-        self.publisher_2 = self.create_publisher(
-            PixelCoordinates, 'pixel_topic2', 10)
-        
-        self.publisher_3 = self.create_publisher(
-            PixelCoordinates, 'pixel_topic3', 10)
+        self.pub = {
+            1: self.create_publisher(PixelCoordinates, 'pixel_topic1', 10),
+            2: self.create_publisher(PixelCoordinates, 'pixel_topic2', 10),
+            3: self.create_publisher(PixelCoordinates, 'pixel_topic3', 10),
+        }
 
         # timer
         self.timer = self.create_timer(0.5, self.timer_callback)
 
-    def drone1_cam_callback(self, data_cam1):    
-        # convert ROS Image message to OpenCV image
-        current_frame1 = self.bridge.imgmsg_to_cv2(data_cam1, desired_encoding="bgr8")
-        results1 = self.model.predict(current_frame1, classes=[0, 2])
+    def camera_callback(self, msg, drone_id):
+        frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        with self.lock:
+            self.latest_frames[drone_id] = frame
 
-        if len(results1[0].boxes) > 0:
-            x_mid1, y_mid1 = results1[0].boxes.xywh[0]
-            confidence1 = results1[0].boxes.conf
-
-            self.det1 = (int(x_mid1), int(y_mid1), confidence1)
-        # boxes = results[0].boxes.xywh
-        # confidences = results[0].boxes.conf
-
-        # if boxes & confidences is not None:
-        #     for box, conf in zip(boxes, confidences):
-        #         x_mid1, y_mid1, width1, height1 = box
-        #         curr_conf = conf
-
-    def drone2_cam_callback(self, data_cam2):
-        current_frame2 = self.bridge.imgmsg_to_cv2(data_cam2, desired_encoding="bgr8")
-        results2 = self.model.predict(current_frame2, classes=[0, 2])
-        if len(results2[0].boxes) > 0:
-            x_mid2, y_mid2 = results2[0].boxes.xywh[0]
-            confidence2 = results2[0].boxes.conf
-
-            self.det2 = (int(x_mid2), int(y_mid2), confidence2)
-
-    def drone3_cam_callback(self, data_cam3):
-        current_frame3 = self.bridge.imgmsg_to_cv2(data_cam3, desired_encoding="bgr8")
-        results3 = self.model.predict(current_frame3, classes=[0, 2])
-        if len(results3[0].boxes) > 0:
-            x_mid3, y_mid3 = results3[0].boxes.xywh[0]
-            confidence3 = results3[0].boxes.conf
-
-            self.det3 = (int(x_mid3), int(y_mid3), confidence3)
 
     def timer_callback(self):
-        now = self.get_clock().now().to_msg()
 
-        if self.det1 is not None:
-            x, y, conf = self.det1
-            msg = PixelCoordinates()
-            msg.header.stamp = now
-            msg.u = x
-            msg.v = y
-            msg.confidence = conf
-            self.publisher_1.publish(msg)
+        with self.lock:
+            frames_copy = {}
+            for k, v in self.latest_frames.items():
+                if v is not None:
+                    frames_copy[k] = v.copy()
+                else:
+                    frames_copy[k] = None
 
-        if self.det2 is not None:
-            x, y, conf = self.det2
-            msg = PixelCoordinates()
-            msg.header.stamp = now
-            msg.u = x
-            msg.v = y
-            msg.confidence = conf
-            self.publisher_2.publish(msg)
+        for drone_id, frame in frames_copy.items():
 
-        if self.det3 is not None:
-            x, y, conf = self.det3
-            msg = PixelCoordinates()
-            msg.header.stamp = now
-            msg.u = x
-            msg.v = y
-            msg.confidence = conf
-            self.publisher_3.publish(msg)
+            if frame is None:
+                continue
 
+            results = self.model.predict(frame, classes=[0, 2], verbose=False)
 
+            if len(results[0].boxes) > 0:
+                x_mid, y_mid, _, _ = results[0].boxes.xywh[0]
+                confidence = float(results[0].boxes.conf[0])
+
+                msg = PixelCoordinates()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.u = float(x_mid)
+                msg.v = float(y_mid)
+                msg.confidence = confidence
+
+                self.pub[drone_id].publish(msg)
+        
 def main(args=None):
     rclpy.init(args=args)
-    node = GrabVideo()
+    node = GrabVideoSims()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
@@ -126,3 +102,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
