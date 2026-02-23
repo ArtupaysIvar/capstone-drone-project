@@ -11,6 +11,7 @@
 #include "pixel_msgs/msg/pixel_coordinates.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <px4_msgs/msg/vehicle_odometry.hpp>
+#include "sensor_msgs/msg/camera_info.hpp"
 #include <Eigen/Cholesky>
 #include <Eigen/Eigenvalues>
 #include <Eigen/Jacobi>
@@ -33,6 +34,9 @@ private:
     void confCallback1(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg1);
     void confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg2);
     void confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr confmsg3);
+    void cameraInfoCallback1(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo1);
+    void cameraInfoCallback2(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo2);
+    void cameraInfoCallback3(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo3);
     bool dataCheck();
     void timerCallback();
     bool ready();
@@ -118,6 +122,9 @@ private:
     rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr drone2_conf_subs;
     rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr drone3_conf_subs;
 
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr drone1_caminfo_subs;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr drone2_caminfo_subs;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr drone3_caminfo_subs;
     // publisher & timer
     rclcpp::Publisher<geometry_msgs::msg::Point>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
@@ -146,7 +153,19 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         drone3_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
         ("/px4_3/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback3, this, 
         std::placeholders::_1));
-       
+        
+        // TODO: bikin callback function sama parse buat masukin ke camera matrix
+        drone1_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
+        ("/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/camera_info", 10, std::bind(&CalcGPSNode::cameraInfoCallback1, this, 
+        std::placeholders::_1));
+        drone2_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
+        ("/world/custom/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/camera_info", 10, std::bind(&CalcGPSNode::cameraInfoCallback2, this, 
+        std::placeholders::_1));
+        drone3_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
+        ("/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/camera/camera_info", 10, std::bind(&CalcGPSNode::cameraInfoCallback3, this, 
+        std::placeholders::_1));
+        
+
         timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&CalcGPSNode::timerCallback, this));
 
         publisher_ = this->create_publisher<geometry_msgs::msg::Point>
@@ -217,6 +236,24 @@ void CalcGPSNode::confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         q3 = Eigen::Quaterniond(confmsg3->q[0], confmsg3->q[1], confmsg3->q[2], confmsg3->q[3]);
         rot_mat3 = q3.toRotationMatrix();
         odom3_received = true;
+    }
+
+void CalcGPSNode::cameraInfoCallback1(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo1){
+        cam_mat << caminfo1->k[0], caminfo1->k[1], caminfo1->k[2],
+                   caminfo1->k[3], caminfo1->k[4], caminfo1->k[5],
+                   caminfo1->k[6], caminfo1->k[7], caminfo1->k[8];
+    }
+
+void CalcGPSNode::cameraInfoCallback2(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo2){
+        cam_mat << caminfo2->k[0], caminfo2->k[1], caminfo2->k[2],
+                   caminfo2->k[3], caminfo2->k[4], caminfo2->k[5],
+                   caminfo2->k[6], caminfo2->k[7], caminfo2->k[8];
+    }
+
+void CalcGPSNode::cameraInfoCallback3(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo3){
+        cam_mat << caminfo3->k[0], caminfo3->k[1], caminfo3->k[2],
+                   caminfo3->k[3], caminfo3->k[4], caminfo3->k[5],
+                   caminfo3->k[6], caminfo3->k[7], caminfo3->k[8];
     }
 
 bool CalcGPSNode::dataCheck()
