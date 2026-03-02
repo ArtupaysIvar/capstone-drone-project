@@ -46,7 +46,7 @@ private:
 
 
     // buat pixelCallback
-    float conf1, conf2, conf3;
+    float conf1{0}, conf2{0}, conf3{0};
     
     // buat confCallback
     double drone1_xpos, drone1_ypos, drone1_zpos;
@@ -75,7 +75,9 @@ private:
     Eigen::Vector3d pixel_vec2;
     Eigen::Vector3d pixel_vec3;
     // cam intrinsic 
-    Eigen::Matrix3d cam_mat;    
+    Eigen::Matrix3d cam_mat1;
+    Eigen::Matrix3d cam_mat2;
+    Eigen::Matrix3d cam_mat3;    
     // for the cam body rotation
     Eigen::Matrix3d rot_cam_mat;
     // for the drone body rotation
@@ -156,14 +158,27 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         
         // TODO: bikin callback function sama parse buat masukin ke camera matrix
         drone1_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
-        ("/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/camera_info", 10, std::bind(&CalcGPSNode::cameraInfoCallback1, this, 
+        ("/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/camera_info", 
+            10, std::bind(&CalcGPSNode::cameraInfoCallback1, this, 
         std::placeholders::_1));
         drone2_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
-        ("/world/custom/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/camera_info", 10, std::bind(&CalcGPSNode::cameraInfoCallback2, this, 
+        ("/world/custom/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/camera_info", 
+            10, std::bind(&CalcGPSNode::cameraInfoCallback2, this, 
         std::placeholders::_1));
         drone3_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
-        ("/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/camera/camera_info", 10, std::bind(&CalcGPSNode::cameraInfoCallback3, this, 
+        ("/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/camera/camera_info", 
+            10, std::bind(&CalcGPSNode::cameraInfoCallback3, this, 
         std::placeholders::_1));
+
+        // drone1_gps_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>
+        // ("/px4_1/fmu/out/vehicle_global_position", 10, std::bind(&CalcGPSNode::gps_callback_drone1, this, 
+        // std::placeholders::_1));
+        // drone2_gps_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>
+        // ("/px4_2/fmu/out/vehicle_global_position", 10, std::bind(&CalcGPSNode::gps_callback_drone2, this, 
+        // std::placeholders::_1));
+        // drone3_gps_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>
+        // ("/px4_3/fmu/out/vehicle_global_position", 10, std::bind(&CalcGPSNode::gps_callback_drone3, this, 
+        // std::placeholders::_1));
         
 
         timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&CalcGPSNode::timerCallback, this));
@@ -173,10 +188,6 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         
         B_proj_mat.resize(3);
         double fx = 400.0, fy = 400.0, cx = 320.0, cy = 240.0;
-        cam_mat << fx, 0,  cx,
-                    0,  fy, cy,
-                    0,  0,  1;
-        // downward cam
         rot_cam_mat << 0, 1, 0,
                         1, 0, 0,
                         0, 0, -1;
@@ -200,7 +211,6 @@ void CalcGPSNode::pixelCallback3(const pixel_msgs::msg::PixelCoordinates::Shared
         pixel_vec3 << YOLOmsg3->u, YOLOmsg3->v, 1;
         pixel3_received = true;
     }
-
         // CALLBACK BUAT conf
         // rotational matrix will be the functions of drone's rotation
 
@@ -239,19 +249,19 @@ void CalcGPSNode::confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr 
     }
 
 void CalcGPSNode::cameraInfoCallback1(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo1){
-        cam_mat << caminfo1->k[0], caminfo1->k[1], caminfo1->k[2],
+        cam_mat1 << caminfo1->k[0], caminfo1->k[1], caminfo1->k[2],
                    caminfo1->k[3], caminfo1->k[4], caminfo1->k[5],
                    caminfo1->k[6], caminfo1->k[7], caminfo1->k[8];
     }
 
 void CalcGPSNode::cameraInfoCallback2(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo2){
-        cam_mat << caminfo2->k[0], caminfo2->k[1], caminfo2->k[2],
+        cam_mat2 << caminfo2->k[0], caminfo2->k[1], caminfo2->k[2],
                    caminfo2->k[3], caminfo2->k[4], caminfo2->k[5],
                    caminfo2->k[6], caminfo2->k[7], caminfo2->k[8];
     }
 
 void CalcGPSNode::cameraInfoCallback3(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo3){
-        cam_mat << caminfo3->k[0], caminfo3->k[1], caminfo3->k[2],
+        cam_mat3 << caminfo3->k[0], caminfo3->k[1], caminfo3->k[2],
                    caminfo3->k[3], caminfo3->k[4], caminfo3->k[5],
                    caminfo3->k[6], caminfo3->k[7], caminfo3->k[8];
     }
@@ -261,7 +271,6 @@ bool CalcGPSNode::dataCheck()
     return (pixel1_received && pixel2_received && pixel3_received &&
             odom1_received && odom2_received && odom3_received);
 }
-
 
 bool CalcGPSNode::ready(){
         // if(conf1>0.5 || conf2>0.5 || conf3>0.5);
@@ -274,9 +283,9 @@ void CalcGPSNode::projectionFormula()
         // x = K^-1 * x'
         // Eigen::Vector3d cam_mat_curr =  cam_mat_curr[0];    
         // INGETIN URUTANNYA 
-        proj_vec1 =  (rot_mat1*rot_cam_mat).transpose() * cam_mat.inverse() * pixel_vec1;
-        proj_vec2 =  (rot_mat2*rot_cam_mat).transpose() * cam_mat.inverse() * pixel_vec2;
-        proj_vec3 =  (rot_mat3*rot_cam_mat).transpose() * cam_mat.inverse() * pixel_vec3;
+        proj_vec1 =  (rot_mat1*rot_cam_mat).transpose() * cam_mat1.inverse() * pixel_vec1;
+        proj_vec2 =  (rot_mat2*rot_cam_mat).transpose() * cam_mat2.inverse() * pixel_vec2;
+        proj_vec3 =  (rot_mat3*rot_cam_mat).transpose() * cam_mat3.inverse() * pixel_vec3;
         
         proj_uvec1 = proj_vec1/proj_vec1.norm();
         proj_uvec2 = proj_vec2/proj_vec2.norm();
