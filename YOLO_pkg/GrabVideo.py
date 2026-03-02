@@ -38,15 +38,15 @@ class GrabVideoSims(Node):
 
         # subscription
         self.subscription1 = self.create_subscription(
-            Image, '/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/image',
+            Image, '/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/imager/image',
             lambda msg: self.camera_callback(msg, 1), 10)
         
         self.subscription2 = self.create_subscription(
-            Image, '/world/default/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/image', 
+            Image, '/world/custom/model/x500_mono_cam_down_2/link/camera_link/sensor/imager/image', 
             lambda msg: self.camera_callback(msg, 2), 10)
 
         self.subscription3 = self.create_subscription(
-            Image, 'camera_drone3', 
+            Image, '/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/imager/image', 
             lambda msg: self.camera_callback(msg, 3), 10)
         
         

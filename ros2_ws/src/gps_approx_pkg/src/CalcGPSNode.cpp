@@ -146,16 +146,6 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         ("pixel_topic3", 10, std::bind(&CalcGPSNode::pixelCallback3, this, 
         std::placeholders::_1));
         
-        drone1_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
-        ("/px4_1/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback1, this, 
-        std::placeholders::_1));
-        drone2_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
-        ("/px4_2/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback2, this, 
-        std::placeholders::_1));
-        drone3_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
-        ("/px4_3/fmu/out/vehicle_odometry", 10, std::bind(&CalcGPSNode::confCallback3, this, 
-        std::placeholders::_1));
-        
         // TODO: bikin callback function sama parse buat masukin ke camera matrix
         drone1_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
         ("/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/camera_info", 
@@ -169,7 +159,21 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         ("/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/camera/camera_info", 
             10, std::bind(&CalcGPSNode::cameraInfoCallback3, this, 
         std::placeholders::_1));
+        
+        auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10))
+            .best_effort()
+            .durability_volatile();
 
+        drone1_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
+        ("/px4_1/fmu/out/vehicle_odometry", qos_profile, std::bind(&CalcGPSNode::confCallback1, this, 
+        std::placeholders::_1));
+        drone2_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
+        ("/px4_2/fmu/out/vehicle_odometry", qos_profile, std::bind(&CalcGPSNode::confCallback2, this, 
+        std::placeholders::_1));
+        drone3_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
+        ("/px4_3/fmu/out/vehicle_odometry", qos_profile, std::bind(&CalcGPSNode::confCallback3, this, 
+        std::placeholders::_1));
+        
         // drone1_gps_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>
         // ("/px4_1/fmu/out/vehicle_global_position", 10, std::bind(&CalcGPSNode::gps_callback_drone1, this, 
         // std::placeholders::_1));
