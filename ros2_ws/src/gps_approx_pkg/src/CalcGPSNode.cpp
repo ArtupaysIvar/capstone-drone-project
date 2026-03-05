@@ -77,7 +77,7 @@ private:
     // cam intrinsic 
     Eigen::Matrix3d cam_mat1;
     Eigen::Matrix3d cam_mat2;
-    Eigen::Matrix3d cam_mat3;    
+    Eigen::Matrix3d cam_mat3;
     // for the cam body rotation
     Eigen::Matrix3d rot_cam_mat;
     // for the drone body rotation
@@ -191,7 +191,6 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         ("point_location", 10);
         
         B_proj_mat.resize(3);
-        double fx = 400.0, fy = 400.0, cx = 320.0, cy = 240.0;
         rot_cam_mat << 0, 1, 0,
                         1, 0, 0,
                         0, 0, -1;
@@ -287,6 +286,7 @@ void CalcGPSNode::projectionFormula()
         // x = K^-1 * x'
         // Eigen::Vector3d cam_mat_curr =  cam_mat_curr[0];    
         // INGETIN URUTANNYA 
+        // MUNGKIN ADA ISU SAMA CAM_MAT nya
         proj_vec1 =  (rot_mat1*rot_cam_mat).transpose() * cam_mat1.inverse() * pixel_vec1;
         proj_vec2 =  (rot_mat2*rot_cam_mat).transpose() * cam_mat2.inverse() * pixel_vec2;
         proj_vec3 =  (rot_mat3*rot_cam_mat).transpose() * cam_mat3.inverse() * pixel_vec3;
@@ -439,7 +439,7 @@ bool CalcGPSNode::IRMP_triangulation()
 
 void CalcGPSNode::timerCallback(){
 
-    if (!dataCheck()) {
+if (!dataCheck()) {
     return;
     }
 
