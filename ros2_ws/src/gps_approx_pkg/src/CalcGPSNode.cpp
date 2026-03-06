@@ -12,6 +12,8 @@
 #include "geometry_msgs/msg/point.hpp"
 #include <px4_msgs/msg/vehicle_odometry.hpp>
 #include "sensor_msgs/msg/camera_info.hpp"
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <px4_msgs/msg/vehicle_global_position.hpp>
 #include <Eigen/Cholesky>
 #include <Eigen/Eigenvalues>
 #include <Eigen/Jacobi>
@@ -37,6 +39,12 @@ private:
     void cameraInfoCallback1(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo1);
     void cameraInfoCallback2(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo2);
     void cameraInfoCallback3(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo3);
+    Eigen::Vector3f gps_to_ned(double lat, double lon, double alt,
+                            double ref_lat, double ref_lon, double ref_alt);
+    void origin_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg);
+    void gps1_callback(const px4_msgs::msg::VehicleGlobalPosition::SharedPtr msg);
+    void gps2_callback(const px4_msgs::msg::VehicleGlobalPosition::SharedPtr msg);
+    void gps3_callback(const px4_msgs::msg::VehicleGlobalPosition::SharedPtr msg);
     bool dataCheck();
     void timerCallback();
     bool ready();
@@ -66,6 +74,9 @@ private:
     bool odom1_received = false;
     bool odom2_received = false;
     bool odom3_received = false;
+    bool cam_mat1_received = false;
+    bool cam_mat2_received = false;
+    bool cam_mat3_received = false;
 
     // buat projection
     // std::vector<Eigen::Vector3d> proj_vec;
@@ -127,9 +138,20 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr drone1_caminfo_subs;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr drone2_caminfo_subs;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr drone3_caminfo_subs;
+
+    rclcpp::Subscription<px4_msgs::msg::VehicleGlobalPosition>::SharedPtr drone1_gps_sub1;
+    rclcpp::Subscription<px4_msgs::msg::VehicleGlobalPosition>::SharedPtr drone2_gps_sub2;
+    rclcpp::Subscription<px4_msgs::msg::VehicleGlobalPosition>::SharedPtr drone3_gps_sub3;
+
+    rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr origin_sub;
+
     // publisher & timer
     rclcpp::Publisher<geometry_msgs::msg::Point>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
+
+    bool origin_received = false;
+    double ref_lat{0}, ref_lon{0}, ref_alt{0};
+    bool gps1_received{false}, gps2_received{false}, gps3_received{false};
 };
 
 CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
@@ -137,43 +159,66 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         RCLCPP_INFO(this->get_logger(), "GPS approx. node started");
 
         drone1_pix_subs = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
-        ("pixel_topic1", 10, std::bind(&CalcGPSNode::pixelCallback1, this, 
+        ("/pixel_topic1", 10, std::bind(&CalcGPSNode::pixelCallback1, this, 
         std::placeholders::_1));
         drone2_pix_subs = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
-        ("pixel_topic2", 10, std::bind(&CalcGPSNode::pixelCallback2, this, 
+        ("/pixel_topic2", 10, std::bind(&CalcGPSNode::pixelCallback2, this, 
         std::placeholders::_1));
         drone3_pix_subs = this->create_subscription<pixel_msgs::msg::PixelCoordinates>
-        ("pixel_topic3", 10, std::bind(&CalcGPSNode::pixelCallback3, this, 
+        ("/pixel_topic3", 10, std::bind(&CalcGPSNode::pixelCallback3, this, 
+        std::placeholders::_1));
+        
+        auto qos1 = rclcpp::QoS(rclcpp::KeepLast(10))
+            .best_effort()
+            .durability_volatile();
+
+        drone1_gps_sub1 = this->create_subscription<px4_msgs::msg::VehicleGlobalPosition>
+        ("/px4_1/fmu/out/vehicle_global_position", qos1, std::bind(&CalcGPSNode::gps1_callback, this, 
+        std::placeholders::_1));
+        drone2_gps_sub2 = this->create_subscription<px4_msgs::msg::VehicleGlobalPosition>
+        ("/px4_2/fmu/out/vehicle_global_position", qos1, std::bind(&CalcGPSNode::gps2_callback, this, 
+        std::placeholders::_1));
+        drone3_gps_sub3 = this->create_subscription<px4_msgs::msg::VehicleGlobalPosition>
+        ("/px4_3/fmu/out/vehicle_global_position", qos1, std::bind(&CalcGPSNode::gps3_callback, this, 
         std::placeholders::_1));
         
         // TODO: bikin callback function sama parse buat masukin ke camera matrix
         drone1_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
-        ("/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/camera/camera_info", 
+        ("/world/custom/model/x500_mono_cam_down_1/link/camera_link/sensor/imager/camera_info", 
             10, std::bind(&CalcGPSNode::cameraInfoCallback1, this, 
         std::placeholders::_1));
         drone2_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
-        ("/world/custom/model/x500_mono_cam_down_2/link/camera_link/sensor/camera/camera_info", 
+        ("/world/custom/model/x500_mono_cam_down_2/link/camera_link/sensor/imager/camera_info", 
             10, std::bind(&CalcGPSNode::cameraInfoCallback2, this, 
         std::placeholders::_1));
         drone3_caminfo_subs = this->create_subscription<sensor_msgs::msg::CameraInfo>
-        ("/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/camera/camera_info", 
+        ("/world/custom/model/x500_mono_cam_down_3/link/camera_link/sensor/imager/camera_info", 
             10, std::bind(&CalcGPSNode::cameraInfoCallback3, this, 
         std::placeholders::_1));
-        
-        auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10))
+                        
+        auto qos2 = rclcpp::QoS(rclcpp::KeepLast(10))
             .best_effort()
-            .durability_volatile();
+            .transient_local();
 
         drone1_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
-        ("/px4_1/fmu/out/vehicle_odometry", qos_profile, std::bind(&CalcGPSNode::confCallback1, this, 
+        ("/px4_1/fmu/out/vehicle_odometry", qos2, std::bind(&CalcGPSNode::confCallback1, this, 
         std::placeholders::_1));
         drone2_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
-        ("/px4_2/fmu/out/vehicle_odometry", qos_profile, std::bind(&CalcGPSNode::confCallback2, this, 
+        ("/px4_2/fmu/out/vehicle_odometry", qos2, std::bind(&CalcGPSNode::confCallback2, this, 
         std::placeholders::_1));
         drone3_conf_subs = this->create_subscription<px4_msgs::msg::VehicleOdometry>
-        ("/px4_3/fmu/out/vehicle_odometry", qos_profile, std::bind(&CalcGPSNode::confCallback3, this, 
+        ("/px4_3/fmu/out/vehicle_odometry", qos2, std::bind(&CalcGPSNode::confCallback3, this, 
         std::placeholders::_1));
         
+        auto origin_qos = rclcpp::QoS(1)
+                    .reliable()
+                    .transient_local();
+        
+        origin_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>(
+            "/swarm/global_origin", origin_qos,
+            std::bind(&CalcGPSNode::origin_callback, this, std::placeholders::_1));
+
+
         // drone1_gps_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>
         // ("/px4_1/fmu/out/vehicle_global_position", 10, std::bind(&CalcGPSNode::gps_callback_drone1, this, 
         // std::placeholders::_1));
@@ -185,17 +230,71 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         // std::placeholders::_1));
         
 
-        timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&CalcGPSNode::timerCallback, this));
+        timer_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&CalcGPSNode::timerCallback, this));
 
         publisher_ = this->create_publisher<geometry_msgs::msg::Point>
-        ("point_location", 10);
+        ("/point_location", 10);
         
         B_proj_mat.resize(3);
         rot_cam_mat << 0, 1, 0,
                         1, 0, 0,
-                        0, 0, -1;
+                        0, 0, 1;
     };
+Eigen::Vector3f CalcGPSNode::gps_to_ned(
+    double lat, double lon, double alt,
+    double ref_lat, double ref_lon, double ref_alt)
+{
+    const double R = 6371000.0; // earth radius meters
+    float north = static_cast<float>((lat - ref_lat) * (M_PI/180.0) * R);
+    float east  = static_cast<float>((lon - ref_lon) * (M_PI/180.0) * R * std::cos(ref_lat * M_PI/180.0));
+    float down  = static_cast<float>(-(alt - ref_alt));
+    return {north, east, down};
+}
 
+void CalcGPSNode::origin_callback(const sensor_msgs::msg::NavSatFix::SharedPtr origin_msg)
+{
+    if(!origin_received){
+    ref_lat = origin_msg -> latitude;
+    ref_lon = origin_msg -> longitude;
+    ref_alt = origin_msg -> altitude;
+
+    RCLCPP_INFO(this->get_logger(),
+    "Received swarm origin: lat=%.8f lon=%.8f alt=%.2f",
+    ref_lat, ref_lon, ref_alt);
+
+    origin_received = true;}
+    else return;
+}
+
+void CalcGPSNode::gps1_callback(const px4_msgs::msg::VehicleGlobalPosition::SharedPtr gps_msg)
+{
+    if (!gps_msg->lat_lon_valid || !gps_msg->alt_valid) return;
+    if (!origin_received) return;
+    auto ned_pos = gps_to_ned(gps_msg->lat, gps_msg->lon, static_cast<double>(gps_msg->alt),
+                            ref_lat, ref_lon, ref_alt);
+    drone1_pos_vec << ned_pos.x(), ned_pos.y(), ned_pos.z();
+    gps1_received = true;
+}
+
+void CalcGPSNode::gps2_callback(const px4_msgs::msg::VehicleGlobalPosition::SharedPtr gps_msg)
+{
+    if (!gps_msg->lat_lon_valid || !gps_msg->alt_valid)return;
+    if (!origin_received) return;
+    auto ned_pos = gps_to_ned(gps_msg->lat, gps_msg->lon, static_cast<double>(gps_msg->alt),
+                            ref_lat, ref_lon, ref_alt);
+    drone2_pos_vec << ned_pos.x(), ned_pos.y(), ned_pos.z();
+    gps2_received = true;
+}
+
+void CalcGPSNode::gps3_callback(const px4_msgs::msg::VehicleGlobalPosition::SharedPtr gps_msg)
+{
+    if (!gps_msg->lat_lon_valid || !gps_msg->alt_valid)return;
+    if (!origin_received) return;
+    auto ned_pos = gps_to_ned(gps_msg->lat, gps_msg->lon, static_cast<double>(gps_msg->alt),
+                            ref_lat, ref_lon, ref_alt);
+    drone3_pos_vec << ned_pos.x(), ned_pos.y(), ned_pos.z();
+    gps3_received = true;
+}
         // CALLBACK BUAT PIXEL
 void CalcGPSNode::pixelCallback1(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg1){
         conf1 = YOLOmsg1->confidence;
@@ -222,9 +321,10 @@ void CalcGPSNode::confCallback1(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         // drone1_ypos = confmsg1 -> position[1];
         // drone1_zpos = confmsg1 -> position[2];
 
-        drone1_pos_vec << confmsg1 -> position[0], confmsg1 -> position[1], confmsg1 -> position[2];
+        // drone1_pos_vec << confmsg1 -> position[0], confmsg1 -> position[1], confmsg1 -> position[2];
         // Check if PX4 quaternion order is [w,x,y,z] or [x,y,z,w]
-        q1 = Eigen::Quaterniond(confmsg1->q[0], confmsg1->q[1], confmsg1->q[2], confmsg1->q[3]);
+        q1 = Eigen::Quaterniond(static_cast<double>(confmsg1->q[0]), static_cast<double>(confmsg1->q[1]), 
+        static_cast<double>(confmsg1->q[2]), static_cast<double>(confmsg1->q[3]));
         rot_mat1 = q1.toRotationMatrix();
         odom1_received = true;
     }
@@ -234,8 +334,9 @@ void CalcGPSNode::confCallback2(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         // drone2_ypos = confmsg2 -> position[1];
         // drone2_zpos = confmsg2 -> position[2];
 
-        drone2_pos_vec << confmsg2 -> position[0], confmsg2 -> position[1], confmsg2 -> position[2];
-        q2 = Eigen::Quaterniond(confmsg2->q[0], confmsg2->q[1], confmsg2->q[2], confmsg2->q[3]);
+        // drone2_pos_vec << confmsg2 -> position[0], confmsg2 -> position[1], confmsg2 -> position[2];
+        q2 = Eigen::Quaterniond(static_cast<double>(confmsg2->q[0]), static_cast<double>(confmsg2->q[1]), 
+        static_cast<double>(confmsg2->q[2]), static_cast<double>(confmsg2->q[3]));
         rot_mat2 = q2.toRotationMatrix();
         odom2_received = true;
     }
@@ -245,8 +346,9 @@ void CalcGPSNode::confCallback3(const px4_msgs::msg::VehicleOdometry::SharedPtr 
         // drone3_ypos = confmsg3 -> position[1];
         // drone3_zpos = confmsg3 -> position[2];
 
-        drone3_pos_vec << confmsg3 -> position[0], confmsg3 -> position[1], confmsg3 -> position[2];
-        q3 = Eigen::Quaterniond(confmsg3->q[0], confmsg3->q[1], confmsg3->q[2], confmsg3->q[3]);
+        // drone3_pos_vec << confmsg3 -> position[0], confmsg3 -> position[1], confmsg3 -> position[2];
+        q3 = Eigen::Quaterniond(static_cast<double>(confmsg3->q[0]), static_cast<double>(confmsg3->q[1]), 
+        static_cast<double>(confmsg3->q[2]), static_cast<double>(confmsg3->q[3]));
         rot_mat3 = q3.toRotationMatrix();
         odom3_received = true;
     }
@@ -255,29 +357,35 @@ void CalcGPSNode::cameraInfoCallback1(const sensor_msgs::msg::CameraInfo::Shared
         cam_mat1 << caminfo1->k[0], caminfo1->k[1], caminfo1->k[2],
                    caminfo1->k[3], caminfo1->k[4], caminfo1->k[5],
                    caminfo1->k[6], caminfo1->k[7], caminfo1->k[8];
+        cam_mat1_received = true;
     }
 
 void CalcGPSNode::cameraInfoCallback2(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo2){
         cam_mat2 << caminfo2->k[0], caminfo2->k[1], caminfo2->k[2],
                    caminfo2->k[3], caminfo2->k[4], caminfo2->k[5],
                    caminfo2->k[6], caminfo2->k[7], caminfo2->k[8];
+        cam_mat2_received = true;
     }
 
 void CalcGPSNode::cameraInfoCallback3(const sensor_msgs::msg::CameraInfo::SharedPtr caminfo3){
         cam_mat3 << caminfo3->k[0], caminfo3->k[1], caminfo3->k[2],
                    caminfo3->k[3], caminfo3->k[4], caminfo3->k[5],
                    caminfo3->k[6], caminfo3->k[7], caminfo3->k[8];
+        cam_mat3_received = true;
     }
 
 bool CalcGPSNode::dataCheck()
 {
     return (pixel1_received && pixel2_received && pixel3_received &&
-            odom1_received && odom2_received && odom3_received);
+            odom1_received && odom2_received && odom3_received && 
+            gps1_received && gps2_received && gps3_received &&
+            cam_mat1_received && cam_mat2_received && cam_mat3_received &&
+            origin_received);
 }
 
 bool CalcGPSNode::ready(){
         // if(conf1>0.5 || conf2>0.5 || conf3>0.5);
-        return (conf1 > 0.5f && conf2 > 0.5f && conf3 > 0.5f);
+        return (conf1 > 0.2f && conf2 > 0.2f && conf3 > 0.2f);
 }
 
     // start triangulation
@@ -287,9 +395,10 @@ void CalcGPSNode::projectionFormula()
         // Eigen::Vector3d cam_mat_curr =  cam_mat_curr[0];    
         // INGETIN URUTANNYA 
         // MUNGKIN ADA ISU SAMA CAM_MAT nya
-        proj_vec1 =  (rot_mat1*rot_cam_mat).transpose() * cam_mat1.inverse() * pixel_vec1;
-        proj_vec2 =  (rot_mat2*rot_cam_mat).transpose() * cam_mat2.inverse() * pixel_vec2;
-        proj_vec3 =  (rot_mat3*rot_cam_mat).transpose() * cam_mat3.inverse() * pixel_vec3;
+
+        proj_vec1 =  rot_mat1*rot_cam_mat * (cam_mat1.inverse() * pixel_vec1);
+        proj_vec2 =  rot_mat2*rot_cam_mat * (cam_mat2.inverse() * pixel_vec2);
+        proj_vec3 =  rot_mat3*rot_cam_mat * (cam_mat3.inverse() * pixel_vec3);
         
         proj_uvec1 = proj_vec1/proj_vec1.norm();
         proj_uvec2 = proj_vec2/proj_vec2.norm();
@@ -322,7 +431,7 @@ bool CalcGPSNode::MVMP_triangulation(){
         return false;
     }
 
-    target_point = A_sum.ldlt().solve(B_sum); // solve
+    // target_point = A_sum.ldlt().solve(B_sum); // solve
     
     // 2nd check: cek solution
     if (!target_point.allFinite()) {
@@ -377,8 +486,10 @@ bool CalcGPSNode::IRMP_triangulation()
         return false;
     }
 
-    target_point = A_sum.ldlt().solve(B_sum); // solve for the first time using mvmp
+    // target_point = A_sum.ldlt().solve(B_sum); // solve for the first time using mvmp
     
+    target_point = A_sum.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(B_sum);
+
     for(int iter = 1; iter < max_iters_; iter++)
     {
         prev_point = target_point;
@@ -451,6 +562,23 @@ projectionFormula();
 // if (MVMP_triangulation()) {
 
 if (IRMP_triangulation()) {
+    RCLCPP_INFO(this->get_logger(),
+    "D1: %.2f %.2f %.2f | D2: %.2f %.2f %.2f | D3: %.2f %.2f %.2f",
+    drone1_pos_vec.x(), drone1_pos_vec.y(), drone1_pos_vec.z(),
+    drone2_pos_vec.x(), drone2_pos_vec.y(), drone2_pos_vec.z(),
+    drone3_pos_vec.x(), drone3_pos_vec.y(), drone3_pos_vec.z());
+
+    RCLCPP_INFO(this->get_logger(),
+    "proj_uvec1: %.3f %.3f %.3f | proj_uvec2: %.3f %.3f %.3f | proj_uvec3: %.3f %.3f %.3f",
+    proj_uvec1.x(), proj_uvec1.y(), proj_uvec1.z(),
+    proj_uvec2.x(), proj_uvec2.y(), proj_uvec2.z(),
+    proj_uvec3.x(), proj_uvec3.y(), proj_uvec3.z());
+
+    RCLCPP_INFO(this->get_logger(),
+    "pixel1: u=%.1f v=%.1f | cam_mat diag: fx=%.1f fy=%.1f cx=%.1f cy=%.1f",
+    pixel_vec1.x(), pixel_vec1.y(),
+    cam_mat1(0,0), cam_mat1(1,1), cam_mat1(0,2), cam_mat1(1,2));
+
     // publish 
     geometry_msgs::msg::Point GPSmsg;
     GPSmsg.x = target_point.x();
@@ -463,6 +591,7 @@ if (IRMP_triangulation()) {
     //     GPSmsg.x, GPSmsg.y, GPSmsg.z);
 } else {
     RCLCPP_WARN(this->get_logger(), "Triangulation failed");
+    return;
 }
 }
   /*

@@ -21,7 +21,7 @@ class GrabVideoSims(Node):
     def __init__(self):
         super().__init__('grab_video')
 
-        self.model = YOLO('yolov8n.pt')
+        self.model = YOLO('yolo26x.pt')
         # self.model.to("cpu")
         self.bridge = CvBridge()
 
