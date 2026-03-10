@@ -49,7 +49,7 @@ private:
     void timerCallback();
     bool ready();
     void projectionFormula();
-    bool MVMP_triangulation();
+    // bool MVMP_triangulation();
     bool IRMP_triangulation();
 
 
@@ -90,7 +90,9 @@ private:
     Eigen::Matrix3d cam_mat2;
     Eigen::Matrix3d cam_mat3;
     // for the cam body rotation
-    Eigen::Matrix3d rot_cam_mat;
+    // Eigen::Matrix3d enu_to_ned_mat;
+    Eigen::Matrix3d rot_cam_frame;
+
     // for the drone body rotation
     Eigen::Matrix3d rot_mat1;
     Eigen::Matrix3d rot_mat2;
@@ -236,7 +238,7 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         ("/point_location", 10);
         
         B_proj_mat.resize(3);
-        rot_cam_mat << 0, 1, 0,
+        rot_cam_frame << 0, 1, 0,
                         1, 0, 0,
                         0, 0, 1;
     };
@@ -396,16 +398,16 @@ void CalcGPSNode::projectionFormula()
         // INGETIN URUTANNYA 
         // MUNGKIN ADA ISU SAMA CAM_MAT nya
 
-        proj_vec1 =  rot_mat1*rot_cam_mat * (cam_mat1.inverse() * pixel_vec1);
-        proj_vec2 =  rot_mat2*rot_cam_mat * (cam_mat2.inverse() * pixel_vec2);
-        proj_vec3 =  rot_mat3*rot_cam_mat * (cam_mat3.inverse() * pixel_vec3);
+        proj_vec1 =  rot_mat1 * rot_cam_frame * (cam_mat1.inverse() * pixel_vec1);
+        proj_vec2 =  rot_mat2 * rot_cam_frame * (cam_mat2.inverse() * pixel_vec2);
+        proj_vec3 =  rot_mat3 * rot_cam_frame * (cam_mat3.inverse() * pixel_vec3);
         
         proj_uvec1 = proj_vec1/proj_vec1.norm();
         proj_uvec2 = proj_vec2/proj_vec2.norm();
         proj_uvec3 = proj_vec3/proj_vec3.norm();
          
     }
-
+/*
 bool CalcGPSNode::MVMP_triangulation(){
     
     b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};
@@ -455,7 +457,7 @@ bool CalcGPSNode::MVMP_triangulation(){
 
     return true;
 }
-
+*/
 bool CalcGPSNode::IRMP_triangulation()
 {   
     b_vec = {proj_uvec1, proj_uvec2, proj_uvec3};
@@ -507,7 +509,8 @@ bool CalcGPSNode::IRMP_triangulation()
 
             Eigen::Vector3d cam_to_P_vec = prev_point - o_vec[i];
             double cam_to_P_vec_dist_squared = cam_to_P_vec.squaredNorm();
-            Eigen::Vector3d error_vec = B_proj_mat[i] * cam_to_P_vec;
+
+            Eigen::Vector3d error_vec = B_proj_mat[i] * cam_to_P_vec; // sine_op
 
             double weight_squared = 1.0 / cam_to_P_vec_dist_squared;
             
@@ -515,7 +518,9 @@ bool CalcGPSNode::IRMP_triangulation()
             
             // e_i(p) = ||B_i * (p - o_i)||^2 / ||p - o_i||^2
             A_sum += B_proj_mat[i] * weight_squared;
+
             B_sum += weight_squared * ((B_proj_mat[i] * o_vec[i]) + irmp_error * cam_to_P_vec);
+            // B_sum += weight_squared * ((B_proj_mat[i] * o_vec[i]) + irmp_error * cam_to_P_vec);
         }
         
         target_point = A_sum.ldlt().solve(B_sum);
