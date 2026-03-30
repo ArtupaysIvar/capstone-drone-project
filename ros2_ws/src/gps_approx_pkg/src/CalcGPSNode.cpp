@@ -238,9 +238,26 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         ("/point_location", 10);
         
         B_proj_mat.resize(3);
-        rot_cam_frame << 0, 1, 0,
-                        1, 0, 0,
-                        0, 0, 1;
+        rot_cam_frame << 
+            0, 1, 0, 
+            1, 0, 0, 
+            0, 0, 1;
+            // 0, -1, 0, 
+            // -1, 0, 0, 
+            // 0, 0, 1;
+
+            // 0, 1, 0, 
+            // 1, 0, 0, 
+            // 0, 0, 1; -> closest
+
+            // 0, 1, 0, 
+            // 1, 0, 0, 
+            // 0, 0, -1;
+
+            // 0,0,1,
+            // 1,0,0,
+            // 0,1,0;
+
     };
 Eigen::Vector3f CalcGPSNode::gps_to_ned(
     double lat, double lon, double alt,
@@ -405,6 +422,57 @@ void CalcGPSNode::projectionFormula()
         proj_uvec1 = proj_vec1/proj_vec1.norm();
         proj_uvec2 = proj_vec2/proj_vec2.norm();
         proj_uvec3 = proj_vec3/proj_vec3.norm();
+
+
+        RCLCPP_INFO(this->get_logger(),
+        "rot_mat1:\n %.2f %.2f %.2f\n %.2f %.2f %.2f\n %.2f %.2f %.2f",
+        rot_mat1(0,0), rot_mat1(0,1), rot_mat1(0,2),
+        rot_mat1(1,0), rot_mat1(1,1), rot_mat1(1,2),
+        rot_mat1(2,0), rot_mat1(2,1), rot_mat1(2,2));
+        
+        RCLCPP_INFO(this->get_logger(),
+        "rot_mat2:\n %.2f %.2f %.2f\n %.2f %.2f %.2f\n %.2f %.2f %.2f",
+        rot_mat2(0,0), rot_mat2(0,1), rot_mat2(0,2),
+        rot_mat2(1,0), rot_mat2(1,1), rot_mat2(1,2),
+        rot_mat2(2,0), rot_mat2(2,1), rot_mat2(2,2));
+
+        RCLCPP_INFO(this->get_logger(),
+        "rot_mat3:\n %.2f %.2f %.2f\n %.2f %.2f %.2f\n %.2f %.2f %.2f",
+        rot_mat3(0,0), rot_mat3(0,1), rot_mat3(0,2),
+        rot_mat3(1,0), rot_mat3(1,1), rot_mat3(1,2),
+        rot_mat3(2,0), rot_mat3(2,1), rot_mat3(2,2));
+
+
+        // in projectionFormula(), temporarily add:
+        Eigen::Vector3d raw1 = cam_mat1.inverse() * pixel_vec1;
+        Eigen::Vector3d after_camframe1 = rot_cam_frame * raw1;
+        Eigen::Vector3d after_rotmat1 = rot_mat1 * after_camframe1;
+
+        Eigen::Vector3d raw2 = cam_mat2.inverse() * pixel_vec2;
+        Eigen::Vector3d after_camframe2 = rot_cam_frame * raw2;
+        Eigen::Vector3d after_rotmat2 = rot_mat2 * after_camframe2;
+
+        Eigen::Vector3d raw3 = cam_mat3.inverse() * pixel_vec3;
+        Eigen::Vector3d after_camframe3 = rot_cam_frame * raw3;
+        Eigen::Vector3d after_rotmat3 = rot_mat3 * after_camframe3;
+
+        RCLCPP_INFO(this->get_logger(),
+        "raw1: [%.2f %.2f %.2f] | after_camframe1: [%.2f %.2f %.2f] | final1: [%.2f %.2f %.2f]",
+        raw1.x(), raw1.y(), raw1.z(),
+        after_camframe1.x(), after_camframe1.y(), after_camframe1.z(),
+        after_rotmat1.x(), after_rotmat1.y(), after_rotmat1.z());
+
+        RCLCPP_INFO(this->get_logger(),
+        "raw2: [%.2f %.2f %.2f] | after_camframe2: [%.2f %.2f %.2f] | final2: [%.2f %.2f %.2f]",
+        raw2.x(), raw2.y(), raw2.z(),
+        after_camframe2.x(), after_camframe2.y(), after_camframe2.z(),
+        after_rotmat2.x(), after_rotmat2.y(), after_rotmat2.z());
+
+        RCLCPP_INFO(this->get_logger(),
+        "raw3: [%.2f %.2f %.2f] | after_camframe3: [%.2f %.2f %.2f] | final3: [%.2f %.2f %.2f]",
+        raw3.x(), raw3.y(), raw3.z(),
+        after_camframe3.x(), after_camframe3.y(), after_camframe3.z(),
+        after_rotmat3.x(), after_rotmat3.y(), after_rotmat3.z());
          
     }
 /*
@@ -522,8 +590,10 @@ bool CalcGPSNode::IRMP_triangulation()
             B_sum += weight_squared * ((B_proj_mat[i] * o_vec[i]) + irmp_error * cam_to_P_vec);
             // B_sum += weight_squared * ((B_proj_mat[i] * o_vec[i]) + irmp_error * cam_to_P_vec);
         }
-        
-        target_point = A_sum.ldlt().solve(B_sum);
+
+        // pake yg mana ya? coba pake svd dulu, kalo ga bisa baru pake ldlt
+        target_point = A_sum.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(B_sum);
+        // target_point = A_sum.ldlt().solve(B_sum);
         
         // all finite
         if (!target_point.allFinite()) {
