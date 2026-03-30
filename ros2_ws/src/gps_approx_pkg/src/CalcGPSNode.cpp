@@ -239,9 +239,11 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         
         B_proj_mat.resize(3);
         rot_cam_frame << 
-            0, 1, 0, 
-            1, 0, 0, 
-            0, 0, 1;
+            0, -1, 0,
+            1,  0, 0,
+            0,  0, 1;
+
+
             // 0, -1, 0, 
             // -1, 0, 0, 
             // 0, 0, 1;
