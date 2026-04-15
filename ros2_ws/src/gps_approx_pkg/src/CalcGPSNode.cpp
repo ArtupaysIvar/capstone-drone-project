@@ -48,6 +48,7 @@ private:
     bool dataCheck();
     void timerCallback();
     bool ready();
+    bool pixelsFresh() const;
     void projectionFormula();
     // bool MVMP_triangulation();
     bool IRMP_triangulation();
@@ -154,6 +155,11 @@ private:
     bool origin_received = false;
     double ref_lat{0}, ref_lon{0}, ref_alt{0};
     bool gps1_received{false}, gps2_received{false}, gps3_received{false};
+
+    rclcpp::Time last_pixel1_time_;
+    rclcpp::Time last_pixel2_time_;
+    rclcpp::Time last_pixel3_time_;
+    const rclcpp::Duration pixel_stale_timeout_{std::chrono::milliseconds(700)};
 };
 
 CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
@@ -321,18 +327,21 @@ void CalcGPSNode::pixelCallback1(const pixel_msgs::msg::PixelCoordinates::Shared
         conf1 = YOLOmsg1->confidence;
         pixel_vec1 << YOLOmsg1->u, YOLOmsg1->v, 1.0;
         pixel1_received = true;
+        last_pixel1_time_ = this->now();
     }
 
 void CalcGPSNode::pixelCallback2(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg2){
         conf2 = YOLOmsg2->confidence;
         pixel_vec2 << YOLOmsg2->u, YOLOmsg2->v, 1;
         pixel2_received = true;
+        last_pixel2_time_ = this->now();
     }
 
 void CalcGPSNode::pixelCallback3(const pixel_msgs::msg::PixelCoordinates::SharedPtr YOLOmsg3){
         conf3 = YOLOmsg3->confidence;
         pixel_vec3 << YOLOmsg3->u, YOLOmsg3->v, 1;
         pixel3_received = true;
+        last_pixel3_time_ = this->now();
     }
         // CALLBACK BUAT conf
         // rotational matrix will be the functions of drone's rotation
@@ -405,8 +414,16 @@ bool CalcGPSNode::dataCheck()
 }
 
 bool CalcGPSNode::ready(){
-        // if(conf1>0.5 || conf2>0.5 || conf3>0.5);
-        return (conf1 > 0.2f && conf2 > 0.2f && conf3 > 0.2f);
+        return (conf1 > 0.2f && conf2 > 0.2f && conf3 > 0.2f && pixelsFresh());
+}
+
+bool CalcGPSNode::pixelsFresh() const
+{
+    const auto now = this->now();
+    return pixel1_received && pixel2_received && pixel3_received &&
+           ((now - last_pixel1_time_) <= pixel_stale_timeout_) &&
+           ((now - last_pixel2_time_) <= pixel_stale_timeout_) &&
+           ((now - last_pixel3_time_) <= pixel_stale_timeout_);
 }
 
     // start triangulation
