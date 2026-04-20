@@ -8,6 +8,7 @@ find_package(px4_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)  
 find_package(geometry_msgs REQUIRED)  
 find_package(std_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 add_executable(data_collection_node src/DataCollectionNode.cpp)
 ament_target_dependencies(data_collection_node
@@ -19,6 +20,11 @@ ament_target_dependencies(data_collection_node
   std_msgs
   # Eigen3
   # Ceres
+)
+
+target_link_libraries(data_collection_node
+  Eigen3::Eigen
+  # Ceres::ceres
 )
 
 install(TARGETS
