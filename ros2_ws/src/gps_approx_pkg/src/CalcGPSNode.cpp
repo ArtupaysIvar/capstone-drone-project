@@ -242,7 +242,8 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
             0, -1, 0,
             1,  0, 0,
             0,  0, 1;
-
+            RCLCPP_INFO(this->get_logger(),
+            "1,2 matrix element: %f", rot_cam_frame(0,1));
 
             // 0, -1, 0, 
             // -1, 0, 0, 
