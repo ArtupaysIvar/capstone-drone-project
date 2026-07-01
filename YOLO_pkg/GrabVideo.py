@@ -1,6 +1,8 @@
 
 #!/usr/bin/env python3
 
+import time
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -21,7 +23,7 @@ class GrabVideoSims(Node):
     def __init__(self):
         super().__init__('grab_video')
 
-        self.model = YOLO('yolo11x.pt')
+        self.model = YOLO('best.pt')
         # self.model.to("cpu")
         self.bridge = CvBridge()
 
@@ -57,7 +59,7 @@ class GrabVideoSims(Node):
             3: self.create_publisher(PixelCoordinates, 'pixel_topic3', 10),
         }
         # timer
-        self.timer = self.create_timer(0.5, self.timer_callback)
+        self.timer = self.create_timer(0.4, self.timer_callback)
         cv2.namedWindow("Drone 1", cv2.WINDOW_NORMAL)
         cv2.namedWindow("Drone 2", cv2.WINDOW_NORMAL)
         cv2.namedWindow("Drone 3", cv2.WINDOW_NORMAL)
@@ -84,8 +86,18 @@ class GrabVideoSims(Node):
 
             if frame is None:
                 continue
-
+            
+            start_time = time.perf_counter()
+            
             results = self.model.predict(frame, classes=[0, 2], verbose=False)
+            
+            end_time = time.perf_counter()
+
+
+            inference_time_ms = (end_time - start_time) * 1000.0
+
+            self.get_logger().info(
+                f"Drone {drone_id}: YOLO inference = {inference_time_ms:.2f} ms")
 
             # Draw detections
             annotated_frame = results[0].plot()
@@ -103,6 +115,14 @@ class GrabVideoSims(Node):
                 msg.u = float(x_mid)
                 msg.v = float(y_mid)
                 msg.confidence = confidence
+
+                self.pub[drone_id].publish(msg)
+            else:
+                msg = PixelCoordinates()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.u = 0.0
+                msg.v = 0.0
+                msg.confidence = 0.0
 
                 self.pub[drone_id].publish(msg)
 

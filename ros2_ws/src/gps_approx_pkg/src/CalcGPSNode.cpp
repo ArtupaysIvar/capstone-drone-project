@@ -232,7 +232,7 @@ CalcGPSNode::CalcGPSNode() : Node("calc_gps_node")
         // std::placeholders::_1));
         
 
-        timer_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&CalcGPSNode::timerCallback, this));
+        timer_ = this->create_wall_timer(std::chrono::milliseconds(400), std::bind(&CalcGPSNode::timerCallback, this));
 
         publisher_ = this->create_publisher<geometry_msgs::msg::Point>
         ("/point_location", 10);

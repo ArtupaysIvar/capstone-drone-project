@@ -55,7 +55,7 @@ class GrabVideoSims(Node):
         }
 
         # timer
-        self.timer = self.create_timer(0.5, self.timer_callback)
+        self.timer = self.create_timer(0.4, self.timer_callback)
 
     def camera_callback(self, msg, drone_id):
         frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
